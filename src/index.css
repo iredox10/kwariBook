@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --color-kwari-green: #059669;
+  --color-kwari-red: #dc2626;
+  --color-kwari-gold: #fbbf24;
+}
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1f2937;
+  background-color: #f9fafb;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
