@@ -13,7 +13,10 @@ export function useAuth() {
   async function checkUser() {
     try {
       const currentUser = await account.get();
-      setUser(currentUser);
+      // Check for 'admin' label or specific metadata. 
+      // For this local version, we'll allow setting it via preferences.
+      const isAdmin = currentUser.prefs?.role !== 'staff';
+      setUser({ ...currentUser, isAdmin } as any);
     } catch (err) {
       setUser(null);
     } finally {

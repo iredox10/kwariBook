@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { db, transferStock } from '../lib/db';
 import { X, ArrowRightLeft } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useAuth } from '../hooks/useAuth';
 
 interface StockTransferFormProps {
   onSuccess: () => void;
@@ -11,6 +12,7 @@ interface StockTransferFormProps {
 
 export function StockTransferForm({ onSuccess, onCancel }: StockTransferFormProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const shops = useLiveQuery(() => db.shops.toArray());
   
   const [fromShopId, setFromShopId] = useState<string>('');
@@ -28,7 +30,7 @@ export function StockTransferForm({ onSuccess, onCancel }: StockTransferFormProp
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!fromShopId || !toShopId || !productId || !quantity) return;
+    if (!fromShopId || !toShopId || !productId || !quantity || !user) return;
     if (fromShopId === toShopId) {
       setError('Source and destination shops must be different.');
       return;
@@ -43,6 +45,7 @@ export function StockTransferForm({ onSuccess, onCancel }: StockTransferFormProp
         productId: parseInt(productId),
         quantity: parseFloat(quantity),
         date: new Date(),
+        createdBy: user.phone || user.email || 'Unknown',
       });
       onSuccess();
     } catch (err: any) {

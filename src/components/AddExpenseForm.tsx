@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { db, addExpense } from '../lib/db';
 import { X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useAuth } from '../hooks/useAuth';
 
 interface AddExpenseFormProps {
   onSuccess: () => void;
@@ -11,6 +12,7 @@ interface AddExpenseFormProps {
 
 export function AddExpenseForm({ onSuccess, onCancel }: AddExpenseFormProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const shops = useLiveQuery(() => db.shops.toArray());
   
   const [category, setCategory] = useState<'porter' | 'fuel' | 'rent' | 'commission' | 'other'>('porter');
@@ -21,7 +23,7 @@ export function AddExpenseForm({ onSuccess, onCancel }: AddExpenseFormProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!amount || !shopId) return;
+    if (!amount || !shopId || !user) return;
 
     setIsSubmitting(true);
     try {
@@ -31,6 +33,7 @@ export function AddExpenseForm({ onSuccess, onCancel }: AddExpenseFormProps) {
         description,
         date: new Date(),
         shopId: parseInt(shopId),
+        createdBy: user.phone || user.email || 'Unknown',
       });
       onSuccess();
     } catch (error) {

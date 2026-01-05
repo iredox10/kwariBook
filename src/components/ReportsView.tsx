@@ -10,8 +10,11 @@ import {
   ArrowDownCircle, 
   ArrowUpCircle,
   CheckCircle2,
-  PieChart
+  PieChart,
+  FileText,
+  TrendingDown
 } from 'lucide-react';
+import { generateBankStatement } from '../utils/reportGenerator';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -22,9 +25,10 @@ function cn(...inputs: ClassValue[]) {
 export function ReportsView() {
   const { t } = useTranslation();
   
-  const sales = useLiveQuery(() => db.sales.toArray());
+  const sales = useLiveQuery(() => db.sales.filter(s => !s.isReversed).toArray());
   const expenses = useLiveQuery(() => db.expenses.toArray());
   const inventory = useLiveQuery(() => db.inventory.toArray());
+  const shops = useLiveQuery(() => db.shops.toArray());
   
   if (!sales || sales.length === 0) {
     return (
@@ -59,7 +63,15 @@ export function ReportsView() {
   // Totals
   const totalSales = sales.reduce((sum, s) => sum + s.totalAmount, 0);
   const totalExpenses = (expenses || []).reduce((sum, e) => sum + e.amount, 0);
-  const netProfit = totalSales - totalExpenses;
+  
+  // Calculate Cost of Goods Sold (COGS)
+  const totalCOGS = sales.reduce((sum, sale) => {
+    const saleCOGS = sale.items?.reduce((sSum, item) => sSum + ((item.purchasePrice || 0) * item.quantity), 0) || 0;
+    return sum + saleCOGS;
+  }, 0);
+
+  const grossProfit = totalSales - totalCOGS;
+  const netProfit = grossProfit - totalExpenses;
 
   // Top Products Logic
   const productStats: Record<string, { quantity: number, total: number }> = {};
@@ -85,37 +97,56 @@ export function ReportsView() {
 
   return (
     <div className="space-y-6 pb-8">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-bold text-gray-800">{t('reports')}</h3>
+        <button 
+          onClick={() => generateBankStatement(sales || [], expenses || [], shops?.[0])}
+          className="bg-gray-900 text-white px-4 py-2 rounded-xl flex items-center space-x-2 font-bold text-sm shadow-lg hover:bg-black transition-all"
+        >
+          <FileText size={18} />
+          <span>Export Statement</span>
+        </button>
+      </div>
+
       {/* Financial Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('sales')}</span>
-            <div className="p-1.5 bg-green-50 rounded-lg">
-              <ArrowUpCircle className="text-kwari-green" size={18} />
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Revenue</span>
+          <p className="text-xl font-black text-gray-900">₦ {totalSales.toLocaleString()}</p>
+          <div className="flex items-center mt-2 text-[10px] text-kwari-green font-bold uppercase">
+            <ArrowUpCircle size={12} className="mr-1" />
+            <span>Total Sales</span>
           </div>
-          <p className="text-2xl font-black text-gray-900">₦ {totalSales.toLocaleString()}</p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('expenses')}</span>
-            <div className="p-1.5 bg-red-50 rounded-lg">
-              <ArrowDownCircle className="text-kwari-red" size={18} />
-            </div>
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Direct Costs</span>
+          <p className="text-xl font-black text-gray-900">₦ {totalCOGS.toLocaleString()}</p>
+          <div className="flex items-center mt-2 text-[10px] text-blue-500 font-bold uppercase">
+            <Package size={12} className="mr-1" />
+            <span>Fabric Cost</span>
           </div>
-          <p className="text-2xl font-black text-gray-900">₦ {totalExpenses.toLocaleString()}</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Expenses</span>
+          <p className="text-xl font-black text-gray-900">₦ {totalExpenses.toLocaleString()}</p>
+          <div className="flex items-center mt-2 text-[10px] text-kwari-red font-bold uppercase">
+            <ArrowDownCircle size={12} className="mr-1" />
+            <span>Porters/Fuel/Rent</span>
+          </div>
         </div>
 
         <div className={cn(
-          "p-6 rounded-3xl border shadow-lg transition-all hover:scale-[1.02]",
+          "p-5 rounded-3xl border shadow-lg transition-all hover:scale-[1.02]",
           netProfit >= 0 ? "bg-kwari-green text-white border-kwari-green" : "bg-kwari-red text-white border-kwari-red"
         )}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black opacity-80 uppercase tracking-widest">Net Profit</span>
-            <Wallet size={18} />
+          <span className="text-[10px] font-black opacity-80 uppercase tracking-widest block mb-1">Net Profit</span>
+          <p className="text-xl font-black">₦ {netProfit.toLocaleString()}</p>
+          <div className="flex items-center mt-2 text-[10px] font-bold uppercase">
+            <Wallet size={12} className="mr-1" />
+            <span>Take Home</span>
           </div>
-          <p className="text-2xl font-black">₦ {netProfit.toLocaleString()}</p>
         </div>
       </div>
 
@@ -265,13 +296,15 @@ export function ReportsView() {
           <TrendingUp size={120} />
         </div>
         <div className="relative z-10">
-          <h3 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mb-3">{t('monthlySales')}</h3>
+          <h3 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mb-3">Net Profit this Month</h3>
           <p className="text-5xl font-black mb-6 tracking-tight">
-            ₦ {totalSales.toLocaleString()}
+            ₦ {netProfit.toLocaleString()}
           </p>
           <div className="inline-flex items-center px-4 py-2 bg-kwari-green/20 rounded-full border border-kwari-green/30">
-            <TrendingUp size={16} className="text-kwari-green mr-2" />
-            <span className="text-kwari-green font-black text-xs uppercase tracking-wider">Business is booming!</span>
+            {netProfit >= 0 ? <TrendingUp size={16} className="text-kwari-green mr-2" /> : <TrendingDown size={16} className="text-kwari-red mr-2" />}
+            <span className={cn("font-black text-xs uppercase tracking-wider", netProfit >= 0 ? "text-kwari-green" : "text-kwari-red")}>
+              {netProfit >= 0 ? 'Business is booming!' : 'Margins are tight - Reduce Expenses!'}
+            </span>
           </div>
         </div>
       </div>

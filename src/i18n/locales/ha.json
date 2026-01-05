@@ -84,5 +84,10 @@
   "resultInNaira": "Jumullar Naira",
   "calculate": "Lissafa",
   "shareReceipt": "Aika Rasit",
-  "receiptText": "Rasit din KwariBook\n\nSuna: {{customer}}\nKudi: ₦ {{amount}}\nKwanan Wata: {{date}}\nYanayi: {{status}}\n\nNagode da kasuwancinka!"
+  "receiptText": "Rasit din KwariBook\n\nSuna: {{customer}}\nKudi: ₦ {{amount}}\nKwanan Wata: {{date}}\nYanayi: {{status}}\n\nNagode da kasuwancinka!",
+  "reversed": "An soke",
+  "reverse": "Soke Ciniki",
+  "reversalReason": "Dalilin sokewa",
+  "recordedBy": "Wanda yayi rikodin",
+  "reversedBy": "Wanda ya soke"
 }

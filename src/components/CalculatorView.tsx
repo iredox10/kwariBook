@@ -1,23 +1,38 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../lib/db';
-import { Landmark, TrendingUp, Info } from 'lucide-react';
+import { db, recordZakat } from '../lib/db';
+import { Landmark, TrendingUp, Info, History, CheckCircle2 } from 'lucide-react';
 
 export function CalculatorView() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'zakat' | 'fx'>('zakat');
+  const [activeTab, setActiveTab] = useState<'zakat' | 'fx' | 'zakat_ledger'>('zakat');
 
   // Zakat State
   const [cash, setCash] = useState('');
-  const [goldPrice, setGoldPrice] = useState('90000'); // Default ~90k per gram
+  const [goldPrice, setGoldPrice] = useState('90000'); 
+  const [zakatNote, setZakatNote] = useState('');
   const inventory = useLiveQuery(() => db.inventory.toArray());
+  const zakatHistory = useLiveQuery(() => db.zakat.orderBy('date').reverse().toArray());
   const totalInventoryValue = inventory?.reduce((acc, item) => acc + (item.quantity * item.pricePerUnit), 0) || 0;
   
   const totalWealth = (parseFloat(cash) || 0) + totalInventoryValue;
   const nisabThreshold = (parseFloat(goldPrice) || 0) * 85;
   const isEligible = totalWealth >= nisabThreshold;
   const zakatDue = isEligible ? totalWealth * 0.025 : 0;
+
+  const handleRecordZakat = async () => {
+    if (zakatDue <= 0) return;
+    await recordZakat({
+      amount: zakatDue,
+      totalWealth,
+      date: new Date(),
+      note: zakatNote || 'Annual Zakat payment'
+    });
+    alert('Zakat payment recorded in ledger.');
+    setZakatNote('');
+    setActiveTab('zakat_ledger');
+  };
 
   // FX State
   const [currency, setCurrency] = useState('USD');
@@ -45,6 +60,15 @@ export function CalculatorView() {
         >
           <TrendingUp size={20} />
           <span>{t('fx')}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('zakat_ledger')}
+          className={`flex-1 flex items-center justify-center space-x-2 p-3 rounded-lg font-bold transition-all ${
+            activeTab === 'zakat_ledger' ? 'bg-white shadow-sm text-kwari-green' : 'text-gray-500'
+          }`}
+        >
+          <History size={20} />
+          <span>History</span>
         </button>
       </div>
 
@@ -96,12 +120,55 @@ export function CalculatorView() {
                   <p className="text-xs text-gray-400">Zakat is not yet mandatory.</p>
                </div>
              ) : (
-               <div className="w-full bg-kwari-green/10 p-6 rounded-2xl border-2 border-kwari-green border-dashed text-center">
-                  <h2 className="text-kwari-green font-bold text-lg mb-1">{t('zakatDue')}</h2>
-                  <p className="text-3xl font-black text-kwari-green">₦ {zakatDue.toLocaleString()}</p>
+               <div className="w-full space-y-4">
+                 <div className="w-full bg-kwari-green/10 p-6 rounded-2xl border-2 border-kwari-green border-dashed text-center">
+                    <h2 className="text-kwari-green font-bold text-lg mb-1">{t('zakatDue')}</h2>
+                    <p className="text-3xl font-black text-kwari-green">₦ {zakatDue.toLocaleString()}</p>
+                 </div>
+                 <div className="space-y-2">
+                    <input 
+                      type="text" 
+                      value={zakatNote} 
+                      onChange={(e) => setZakatNote(e.target.value)}
+                      placeholder="Note (e.g. Distributed to needy neighbors)"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+                    />
+                    <button 
+                      onClick={handleRecordZakat}
+                      className="w-full p-3 bg-kwari-green text-white font-black rounded-xl shadow-lg hover:bg-opacity-90 transition-all"
+                    >
+                      Mark as Paid & Save to Ledger
+                    </button>
+                 </div>
                </div>
              )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'zakat_ledger' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
+          {zakatHistory?.map(record => (
+            <div key={record.id} className="p-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-50 text-kwari-green rounded-xl"><CheckCircle2 size={24} /></div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">₦ {record.amount.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(record.date).toLocaleDateString()} • {record.note}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-400 font-bold uppercase">Wealth at time</p>
+                <p className="text-xs font-black text-gray-600">₦ {record.totalWealth.toLocaleString()}</p>
+              </div>
+            </div>
+          ))}
+          {(!zakatHistory || zakatHistory.length === 0) && (
+            <div className="p-12 text-center text-gray-400">
+              <History size={48} className="mx-auto opacity-10 mb-4" />
+              <p className="font-bold italic">No past Zakat records found.</p>
+            </div>
+          )}
         </div>
       )}
 

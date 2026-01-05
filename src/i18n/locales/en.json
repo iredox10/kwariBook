@@ -84,5 +84,10 @@
   "resultInNaira": "Result in Naira",
   "calculate": "Calculate",
   "shareReceipt": "Share Receipt",
-  "receiptText": "KwariBook Receipt\n\nCustomer: {{customer}}\nAmount: ₦ {{amount}}\nDate: {{date}}\nStatus: {{status}}\n\nThank you for your business!"
+  "receiptText": "KwariBook Receipt\n\nCustomer: {{customer}}\nAmount: ₦ {{amount}}\nDate: {{date}}\nStatus: {{status}}\n\nThank you for your business!",
+  "reversed": "Reversed",
+  "reverse": "Reverse Sale",
+  "reversalReason": "Reason for reversal",
+  "recordedBy": "Recorded by",
+  "reversedBy": "Reversed by"
 }

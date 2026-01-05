@@ -9,9 +9,12 @@ const SALES_COLLECTION_ID = import.meta.env.VITE_APPWRITE_SALES_COLLECTION_ID ||
 const INVENTORY_COLLECTION_ID = import.meta.env.VITE_APPWRITE_INVENTORY_COLLECTION_ID || '';
 const BROKERS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_BROKERS_COLLECTION_ID || '';
 const TRANSFERS_COLLECTION_ID = 'transfers';
-const SHOPS_COLLECTION_ID = 'shops';
 const CUSTOMERS_COLLECTION_ID = 'customers';
 const EXPENSES_COLLECTION_ID = 'expenses';
+const DEBT_PAYMENTS_COLLECTION_ID = 'debt_payments';
+const ZAKAT_COLLECTION_ID = 'zakat';
+const SUPPLIERS_COLLECTION_ID = 'suppliers';
+const SUPPLIER_TRANSACTIONS_COLLECTION_ID = 'supplier_transactions';
 
 export function useSyncManager() {
   const [isSyncing, setIsSyncing] = useState(false);
@@ -60,7 +63,9 @@ export function useSyncManager() {
               localId: item.payload.id,
               shopId: item.payload.shopId,
               brokerId: item.payload.brokerId,
-              laadaAmount: item.payload.laadaAmount
+              laadaAmount: item.payload.laadaAmount,
+              createdBy: item.payload.createdBy,
+              items: JSON.stringify(item.payload.items) 
             }
           );
           await db.sales.update(item.payload.id, { appwriteId: response.$id });
@@ -76,8 +81,15 @@ export function useSyncManager() {
                 quantity: item.payload.quantity,
                 unit: item.payload.unit,
                 pricePerUnit: item.payload.pricePerUnit,
+                purchasePrice: item.payload.purchasePrice,
+                purchaseCurrency: item.payload.purchaseCurrency,
+                wholesalePrice: item.payload.wholesalePrice,
+                wholesaleThreshold: item.payload.wholesaleThreshold,
+                photo: item.payload.photo,
+                barcode: item.payload.barcode,
                 shopId: item.payload.shopId,
-                localId: item.payload.id
+                localId: item.payload.id,
+                createdBy: item.payload.createdBy
               }
             );
             await db.inventory.update(item.payload.id, { appwriteId: response.$id });
@@ -88,7 +100,10 @@ export function useSyncManager() {
                 DATABASE_ID,
                 INVENTORY_COLLECTION_ID,
                 localRecord.appwriteId,
-                { quantity: item.payload.quantity }
+                { 
+                  quantity: item.payload.quantity,
+                  updatedAt: item.payload.updatedAt
+                }
               );
             }
           }
@@ -127,10 +142,65 @@ export function useSyncManager() {
               description: item.payload.description,
               date: item.payload.date,
               shopId: item.payload.shopId,
-              localId: item.payload.id
+              localId: item.payload.id,
+              createdBy: item.payload.createdBy
             }
           );
           await db.expenses.update(item.payload.id, { appwriteId: response.$id });
+        } else if (item.collection === 'suppliers' && item.action === 'CREATE') {
+          const response = await databases.createDocument(
+            DATABASE_ID,
+            SUPPLIERS_COLLECTION_ID,
+            ID.unique(),
+            {
+              name: item.payload.name,
+              currency: item.payload.currency,
+              totalDebt: item.payload.totalDebt,
+              localId: item.payload.id
+            }
+          );
+          await db.suppliers.update(item.payload.id, { appwriteId: response.$id });
+        } else if (item.collection === 'supplier_transactions' && item.action === 'CREATE') {
+          const response = await databases.createDocument(
+            DATABASE_ID,
+            SUPPLIER_TRANSACTIONS_COLLECTION_ID,
+            ID.unique(),
+            {
+              supplierId: item.payload.supplierId,
+              amount: item.payload.amount,
+              currency: item.payload.currency,
+              type: item.payload.type,
+              date: item.payload.date,
+              description: item.payload.description,
+              localId: item.payload.id
+            }
+          );
+          await db.supplier_transactions.update(item.payload.id, { appwriteId: response.$id });
+        } else if (item.collection === 'debt_payments' && item.action === 'CREATE') {
+          await databases.createDocument(
+            DATABASE_ID,
+            DEBT_PAYMENTS_COLLECTION_ID,
+            ID.unique(),
+            {
+              saleId: item.payload.saleId,
+              amount: item.payload.amount,
+              date: item.payload.date,
+              localId: item.payload.id
+            }
+          );
+        } else if (item.collection === 'zakat' && item.action === 'CREATE') {
+          await databases.createDocument(
+            DATABASE_ID,
+            ZAKAT_COLLECTION_ID,
+            ID.unique(),
+            {
+              amount: item.payload.amount,
+              totalWealth: item.payload.totalWealth,
+              date: item.payload.date,
+              note: item.payload.note,
+              localId: item.payload.id
+            }
+          );
         } else if (item.collection === 'transfers' && item.action === 'CREATE') {
           await databases.createDocument(
             DATABASE_ID,
@@ -141,21 +211,10 @@ export function useSyncManager() {
               toShopId: item.payload.toShopId,
               productId: item.payload.productId,
               quantity: item.payload.quantity,
-              date: item.payload.date
+              date: item.payload.date,
+              createdBy: item.payload.createdBy
             }
           );
-        } else if (item.collection === 'shops' && (item.action === 'CREATE' || item.action === 'UPDATE')) {
-          if (item.action === 'CREATE') {
-            await databases.createDocument(
-              DATABASE_ID,
-              SHOPS_COLLECTION_ID,
-              ID.unique(),
-              {
-                name: item.payload.name,
-                address: item.payload.address
-              }
-            );
-          }
         } else if (item.collection === 'sales' && item.action === 'UPDATE') {
           const localRecord = await db.sales.get(item.payload.id);
           if (localRecord?.appwriteId) {
@@ -163,7 +222,13 @@ export function useSyncManager() {
                DATABASE_ID,
                SALES_COLLECTION_ID,
                localRecord.appwriteId,
-               { status: item.payload.status }
+               { 
+                 status: item.payload.status,
+                 isReversed: item.payload.isReversed,
+                 reversedBy: item.payload.reversedBy,
+                 reversalReason: item.payload.reversalReason,
+                 updatedAt: item.payload.updatedAt
+               }
              );
           }
         }
