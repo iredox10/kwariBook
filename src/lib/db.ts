@@ -156,6 +156,21 @@ interface DebtPayment {
   updatedAt: number;
 }
 
+export type UserRole = 'owner' | 'manager' | 'sales_boy';
+
+interface User {
+  id?: number;
+  appwriteId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  role: UserRole;
+  shopIds: number[];
+  isActive: boolean;
+  lastLogin?: Date;
+  updatedAt: number;
+}
+
 interface SyncQueueItem {
   id?: number;
   action: 'CREATE' | 'UPDATE' | 'DELETE';
@@ -178,10 +193,11 @@ const db = new Dexie('KwariBookDB') as Dexie & {
   market_levies: EntityTable<MarketLevy, 'id'>;
   zakat: EntityTable<ZakatPayment, 'id'>;
   debt_payments: EntityTable<DebtPayment, 'id'>;
+  users: EntityTable<User, 'id'>;
   sync_queue: EntityTable<SyncQueueItem, 'id'>;
 };
 
-db.version(16).stores({
+db.version(17).stores({
   sales: '++id, customerName, customerId, date, status, shopId, isReversed, createdBy, appwriteId',
   customers: '++id, name, phone, appwriteId',
   flagged_customers: '++id, phone',
@@ -195,6 +211,7 @@ db.version(16).stores({
   market_levies: '++id, name, shopId',
   zakat: '++id, date',
   debt_payments: '++id, saleId, date',
+  users: '++id, appwriteId, role, isActive',
   sync_queue: '++id, action, collection, timestamp'
 });
 
@@ -337,5 +354,12 @@ export async function addDebtPayment(saleId: number, amount: number) {
   });
 }
 
-export type { Sale, Customer, FlaggedCustomer, Supplier, SupplierTransaction, InventoryItem, Broker, Shop, StockTransfer, Expense, MarketLevy, ZakatPayment, DebtPayment, SyncQueueItem };
+export async function addUser(user: Omit<User, 'id' | 'updatedAt'>) {
+  const data: User = { ...user, updatedAt: Date.now() };
+  const id = await db.users.add(data);
+  await db.sync_queue.add({ action: 'CREATE', collection: 'users', payload: { ...data, id }, timestamp: Date.now() });
+  return id;
+}
+
+export type { Sale, Customer, FlaggedCustomer, Supplier, SupplierTransaction, InventoryItem, Broker, Shop, StockTransfer, Expense, MarketLevy, ZakatPayment, DebtPayment, SyncQueueItem, User };
 export { db };

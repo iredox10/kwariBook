@@ -53,10 +53,12 @@ import { SettingsView } from './components/SettingsView';
 import { MarketLevyView } from './components/MarketLevyView';
 import { ManualView } from './components/ManualView';
 import { LoginView } from './components/LoginView';
+import { StaffView } from './components/StaffView';
 import { useSyncManager } from './hooks/useSyncManager';
 import { useAuth } from './hooks/useAuth';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, reverseSale, addDebtPayment, flagCustomer } from './lib/db';
+import { hasPermission } from './lib/permissions';
 import { sendDebtReminder, shareProfessionalReceipt, shareWaybill, shareNewArrivals } from './utils/whatsapp';
 import { generateCustomerStatement } from './utils/reportGenerator';
 import { account } from './api/appwrite';
@@ -240,13 +242,26 @@ function App() {
       { id: 'brokers', label: t('brokers'), icon: Users, public: false },
       { id: 'calculators', label: t('calculators'), icon: Calculator, public: false },
       { id: 'reports', label: t('reports'), icon: BarChart3, public: false },
+      { id: 'staff', label: 'Staff', icon: Users, public: false },
       { id: 'manual', label: 'Manual', icon: BookOpen, public: true },
       { id: 'settings', label: t('settings'), icon: SettingsIcon, public: true },
     ];
 
-    if (user && !(user as any).isAdmin) {
-      return items.filter(item => item.public);
+    if (!user) return items.filter(i => i.public);
+    
+    // Filter based on role permissions
+    if (user.role === 'owner') return items;
+    
+    // For other roles, filter out "private" items unless specific logic added
+    // For now, let's just say only owner sees reports/staff/expenses
+    if (user.role === 'sales_boy') {
+      return items.filter(item => ['dashboard', 'sales', 'inventory', 'bashi', 'manual', 'settings'].includes(item.id));
     }
+    
+    if (user.role === 'manager') {
+       return items.filter(item => item.id !== 'staff'); // Manager sees everything except staff management
+    }
+
     return items;
   }, [user, t]);
 
@@ -277,16 +292,16 @@ function App() {
              <div className="bg-kwari-green text-white p-2 rounded-full">
                 <User size={16} />
              </div>
-             <div className="flex-1 overflow-hidden">
-                <p className="text-xs font-bold text-gray-800 truncate">{user.phone || user.email}</p>
-                <div className="flex items-center space-x-2">
-                  <span className="text-[8px] font-black uppercase bg-gray-100 px-1 rounded">{(user as any).isAdmin ? 'Alhaji' : 'Staff'}</span>
-                  <button onClick={logout} className="text-[10px] font-bold text-red-500 hover:text-red-700 flex items-center space-x-1">
-                    <LogOut size={10} />
-                    <span>Logout</span>
-                  </button>
-                </div>
-             </div>
+              <div className="flex-1 overflow-hidden">
+                 <p className="text-xs font-bold text-gray-800 truncate">{user.phone || user.email || user.name}</p>
+                 <div className="flex items-center space-x-2">
+                   <span className="text-[8px] font-black uppercase bg-gray-100 px-1 rounded">{user.role?.replace('_', ' ') || 'Staff'}</span>
+                   <button onClick={logout} className="text-[10px] font-bold text-red-500 hover:text-red-700 flex items-center space-x-1">
+                     <LogOut size={10} />
+                     <span>Logout</span>
+                   </button>
+                 </div>
+              </div>
           </div>
         )}
 
@@ -397,7 +412,7 @@ function App() {
                   <Trash2 size={20} />
                   <span>{showRemnantsOnly ? 'All Items' : 'Rage-rage'}</span>
                 </button>
-                {showRemnantsOnly && (user as any)?.isAdmin && (
+                {showRemnantsOnly && hasPermission(user?.role, 'manage_inventory') && (
                   <button 
                     onClick={handleFlashSale}
                     className="bg-red-600 text-white p-3 rounded-xl flex items-center space-x-2 font-bold shadow-lg shadow-red-100 hover:bg-opacity-90 transition-all"
@@ -406,17 +421,21 @@ function App() {
                     <span>Flash Sale</span>
                   </button>
                 )}
-                <button onClick={() => setShowTransfer(true)} className="bg-white text-kwari-green border border-kwari-green p-3 rounded-xl flex items-center space-x-2 font-bold hover:bg-green-50 transition-all">
-                  <ArrowRightLeft size={20} />
-                  <span>{t('transfer')}</span>
-                </button>
-                <button onClick={() => setShowAddInventory(true)} className="bg-kwari-green text-white p-3 rounded-xl flex items-center space-x-2 font-bold shadow-lg shadow-green-100 hover:bg-opacity-90 transition-all">
-                  <Plus size={20} />
-                  <span>{t('add')}</span>
-                </button>
+                {hasPermission(user?.role, 'manage_inventory') && (
+                  <>
+                    <button onClick={() => setShowTransfer(true)} className="bg-white text-kwari-green border border-kwari-green p-3 rounded-xl flex items-center space-x-2 font-bold hover:bg-green-50 transition-all">
+                      <ArrowRightLeft size={20} />
+                      <span>{t('transfer')}</span>
+                    </button>
+                    <button onClick={() => setShowAddInventory(true)} className="bg-kwari-green text-white p-3 rounded-xl flex items-center space-x-2 font-bold shadow-lg shadow-green-100 hover:bg-opacity-90 transition-all">
+                      <Plus size={20} />
+                      <span>{t('add')}</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
-            {activeTab === 'expenses' && !showAddExpense && (
+            {activeTab === 'expenses' && !showAddExpense && hasPermission(user?.role, 'manage_expenses') && (
               <button onClick={() => setShowAddExpense(true)} className="bg-kwari-red text-white p-3 rounded-xl flex items-center space-x-2 font-bold shadow-lg shadow-red-100 hover:bg-opacity-90 transition-all">
                 <Plus size={20} />
                 <span>{t('add')}</span>
@@ -522,7 +541,7 @@ function App() {
                                   {customer?.phone && (
                                     <button onClick={() => handleReportScam(customer.phone)} className="p-2 text-gray-400 hover:text-red-600" title="Report Fake Alert"><ShieldAlert size={20} /></button>
                                   )}
-                                  {(user as any)?.isAdmin && (
+                                  {(user?.role === 'owner' || hasPermission(user?.role, 'delete_sales')) && (
                                     <button onClick={() => sale.id && handleReverse(sale.id)} className="p-2 text-gray-400 hover:text-red-500" title={t('reverse')}><RotateCcw size={20} /></button>
                                   )}
                                 </>
@@ -757,6 +776,7 @@ function App() {
 
           {activeTab === 'calculators' && <CalculatorView />}
           {activeTab === 'reports' && <ReportsView />}
+          {activeTab === 'staff' && <StaffView />}
           {activeTab === 'manual' && <ManualView />}
           {activeTab === 'settings' && <SettingsView />}
 
