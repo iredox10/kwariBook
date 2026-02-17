@@ -87,11 +87,14 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
     setBundles(prev => prev.map((b, i) => i === bundleIndex ? { ...b, color: hex, yards: b.yards.map(y => ({ ...y, color: hex })) } : b));
   };
 
+  const [bundlePriceOverride, setBundlePriceOverride] = useState<{ bought: string; sell: string } | null>(null);
   const bundleCountNumber = Math.max(1, parseInt(bundleCount || '1', 10));
   const dealerBuyNumber = parseFloat(dealerBuy || '0');
   const dealerSellNumber = parseFloat(dealerSell || '0');
   const bundlePriceBoughtComputed = bundleCountNumber ? dealerBuyNumber / bundleCountNumber : 0;
   const bundlePriceSellComputed = bundleCountNumber ? dealerSellNumber / bundleCountNumber : 0;
+  const bundlePriceBoughtFinal = bundlePriceOverride?.bought ? parseFloat(bundlePriceOverride.bought) : bundlePriceBoughtComputed;
+  const bundlePriceSellFinal = bundlePriceOverride?.sell ? parseFloat(bundlePriceOverride.sell) : bundlePriceSellComputed;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -120,8 +123,8 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
         if (!dealerName || !dealerQty || !dealerBuy || !dealerSell) return;
         const parsedBundles = bundles.map(bundle => ({
           quantity: parseFloat(bundleCount || '0'),
-          priceBought: bundlePriceBoughtComputed,
-          priceSell: bundlePriceSellComputed,
+          priceBought: bundlePriceBoughtFinal,
+          priceSell: bundlePriceSellFinal,
           color: bundle.color,
           image: bundle.image || undefined,
           shopId: parseInt(shopId)
@@ -129,8 +132,8 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
         const yardsByBundle = bundles.map(bundle =>
           bundle.yards.map(yard => {
             const yardQty = parseFloat(yard.quantity || '0');
-            const yardPriceBought = yardQty ? bundlePriceBoughtComputed / yardQty : 0;
-            const yardPriceSell = yardQty ? bundlePriceSellComputed / yardQty : 0;
+            const yardPriceBought = yardQty ? bundlePriceBoughtFinal / yardQty : 0;
+            const yardPriceSell = yardQty ? bundlePriceSellFinal / yardQty : 0;
             return {
               name: dealerName,
               color: bundle.color,
@@ -442,6 +445,9 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                     onChange={(e) => setDealerBuy(e.target.value)}
                     className="w-full p-3 bg-white border border-gray-200 rounded-lg outline-none"
                   />
+                  <div className="mt-1 text-xs font-bold text-gray-600">
+                    ₦{dealerBuyNumber.toLocaleString()}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Price to Sell</label>
@@ -451,6 +457,9 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                     onChange={(e) => setDealerSell(e.target.value)}
                     className="w-full p-3 bg-white border border-gray-200 rounded-lg outline-none"
                   />
+                  <div className="mt-1 text-xs font-bold text-gray-600">
+                    ₦{dealerSellNumber.toLocaleString()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -484,16 +493,35 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Bought (auto)</label>
-                    <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg font-bold text-gray-700">
-                      ₦{bundlePriceBoughtComputed.toLocaleString()}
-                    </div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Bought</label>
+                    <input
+                      type="number"
+                      value={bundlePriceOverride?.bought ?? ''}
+                      onChange={(e) => setBundlePriceOverride(prev => ({ bought: e.target.value, sell: prev?.sell ?? '' }))}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                      placeholder={`Auto: ₦${bundlePriceBoughtComputed.toLocaleString()}`}
+                    />
+                    <div className="mt-1 text-xs font-bold text-gray-600">Auto: ₦{bundlePriceBoughtComputed.toLocaleString()}</div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Sell (auto)</label>
-                    <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg font-bold text-gray-700">
-                      ₦{bundlePriceSellComputed.toLocaleString()}
-                    </div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Sell</label>
+                    <input
+                      type="number"
+                      value={bundlePriceOverride?.sell ?? ''}
+                      onChange={(e) => setBundlePriceOverride(prev => ({ bought: prev?.bought ?? '', sell: e.target.value }))}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                      placeholder={`Auto: ₦${bundlePriceSellComputed.toLocaleString()}`}
+                    />
+                    <div className="mt-1 text-xs font-bold text-gray-600">Auto: ₦{bundlePriceSellComputed.toLocaleString()}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <button
+                      type="button"
+                      onClick={() => setBundlePriceOverride(null)}
+                      className="text-xs font-bold text-kwari-green"
+                    >
+                      Reset to auto
+                    </button>
                   </div>
                 </div>
               </div>
