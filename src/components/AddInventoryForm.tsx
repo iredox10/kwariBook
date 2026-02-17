@@ -1,7 +1,7 @@
 import { useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addInventoryItem, addDealerHierarchy, db } from '../lib/db';
-import { X, Camera, Plus, Trash2 } from 'lucide-react';
+import { X, Camera, Plus } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../hooks/useAuth';
 
@@ -34,11 +34,11 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
   const [dealerQty, setDealerQty] = useState('');
   const [dealerBuy, setDealerBuy] = useState('');
   const [dealerSell, setDealerSell] = useState('');
-  const [bundles, setBundles] = useState<Array<{ quantity: string; priceBought: string; priceSell: string; color: string; yards: Array<{ name: string; color: string; quantity: string; priceBought: string; priceSell: string; }>; }>>([
+  const [bundleCount, setBundleCount] = useState('1');
+  const [bundlePriceBought, setBundlePriceBought] = useState('');
+  const [bundlePriceSell, setBundlePriceSell] = useState('');
+  const [bundles, setBundles] = useState<Array<{ color: string; yards: Array<{ name: string; color: string; quantity: string; priceBought: string; priceSell: string; }>; }>>([
     {
-      quantity: '',
-      priceBought: '',
-      priceSell: '',
       color: '',
       yards: [
         { name: '', color: '', quantity: '', priceBought: '', priceSell: '' }
@@ -94,9 +94,9 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
       } else {
         if (!dealerName || !dealerQty || !dealerBuy || !dealerSell) return;
         const parsedBundles = bundles.map(bundle => ({
-          quantity: parseFloat(bundle.quantity || '0'),
-          priceBought: parseFloat(bundle.priceBought || '0'),
-          priceSell: parseFloat(bundle.priceSell || '0'),
+          quantity: parseFloat(bundleCount || '0'),
+          priceBought: parseFloat(bundlePriceBought || '0'),
+          priceSell: parseFloat(bundlePriceSell || '0'),
           color: bundle.color,
           shopId: parseInt(shopId)
         }));
@@ -424,60 +424,66 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-gray-800">Bundles</h4>
-                <button
-                  type="button"
-                  onClick={() => setBundles(prev => [...prev, { quantity: '', priceBought: '', priceSell: '', color: '', yards: [{ name: '', color: '', quantity: '', priceBought: '', priceSell: '' }] }])}
-                  className="flex items-center space-x-2 text-kwari-green font-bold"
-                >
-                  <Plus size={16} />
-                  <span>Add Bundle</span>
-                </button>
+              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-4">
+                <h5 className="font-bold text-gray-700">Bundle Settings</h5>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Number of Bundles</label>
+                    <input
+                      type="number"
+                      value={bundleCount}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const count = Math.max(1, parseInt(value || '1', 10));
+                        setBundleCount(value);
+                        setBundles(prev => {
+                          const next = [...prev];
+                          if (count > next.length) {
+                            for (let i = next.length; i < count; i += 1) {
+                              next.push({ color: '', yards: [{ name: '', color: '', quantity: '', priceBought: '', priceSell: '' }] });
+                            }
+                          } else if (count < next.length) {
+                            next.splice(count);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Bought</label>
+                    <input
+                      type="number"
+                      value={bundlePriceBought}
+                      onChange={(e) => setBundlePriceBought(e.target.value)}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Sell</label>
+                    <input
+                      type="number"
+                      value={bundlePriceSell}
+                      onChange={(e) => setBundlePriceSell(e.target.value)}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                </div>
               </div>
 
               {bundles.map((bundle, bIndex) => (
                 <div key={bIndex} className="bg-white p-4 rounded-xl border border-gray-200 space-y-4">
                   <div className="flex items-center justify-between">
                     <h5 className="font-bold text-gray-700">Bundle {bIndex + 1}</h5>
-                    {bundles.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setBundles(prev => prev.filter((_, i) => i !== bIndex))}
-                        className="text-red-500"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <input
-                      type="number"
-                      placeholder="Quantity"
-                      value={bundle.quantity}
-                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, quantity: e.target.value } : b))}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
-                    />
+                  <div className="grid grid-cols-1 gap-4">
                     <input
                       type="text"
-                      placeholder="Color"
+                      placeholder="Bundle Color"
                       value={bundle.color}
                       onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, color: e.target.value } : b))}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Price Bought"
-                      value={bundle.priceBought}
-                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, priceBought: e.target.value } : b))}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Price Sell"
-                      value={bundle.priceSell}
-                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, priceSell: e.target.value } : b))}
                       className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
                     />
                   </div>
