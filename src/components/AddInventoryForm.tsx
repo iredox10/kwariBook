@@ -132,8 +132,10 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
         const yardsByBundle = bundles.map(bundle =>
           bundle.yards.map(yard => {
             const yardQty = parseFloat(yard.quantity || '0');
-            const yardPriceBought = yardQty ? bundlePriceBoughtFinal / yardQty : 0;
-            const yardPriceSell = yardQty ? bundlePriceSellFinal / yardQty : 0;
+            const yardPriceBoughtAuto = yardQty ? bundlePriceBoughtFinal / yardQty : 0;
+            const yardPriceSellAuto = yardQty ? bundlePriceSellFinal / yardQty : 0;
+            const yardPriceBought = yard.priceBought ? parseFloat(yard.priceBought) : yardPriceBoughtAuto;
+            const yardPriceSell = yard.priceSell ? parseFloat(yard.priceSell) : yardPriceSellAuto;
             return {
               name: dealerName,
               color: bundle.color,
@@ -629,19 +631,54 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                           onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, quantity: e.target.value } : y) } : b))}
                           className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
                         />
-                        <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-700">
-                          Buy: ₦{(() => {
-                            const qty = parseFloat(yard.quantity || '0');
-                            const price = qty ? bundlePriceBoughtComputed / qty : 0;
-                            return price.toLocaleString();
-                          })()}
-                        </div>
-                        <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-700">
-                          Sell: ₦{(() => {
-                            const qty = parseFloat(yard.quantity || '0');
-                            const price = qty ? bundlePriceSellComputed / qty : 0;
-                            return price.toLocaleString();
-                          })()}
+                        <div className="col-span-2 grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Yard Price Bought</label>
+                            <input
+                              type="number"
+                              placeholder={`Auto: ₦${(() => {
+                                const qty = parseFloat(yard.quantity || '0');
+                                const price = qty ? bundlePriceBoughtFinal / qty : 0;
+                                return price.toLocaleString();
+                              })()}`}
+                              value={yard.priceBought}
+                              onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: e.target.value } : y) } : b))}
+                              className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
+                            />
+                            <div className="mt-1 text-[10px] font-bold text-gray-500">Auto: ₦{(() => {
+                              const qty = parseFloat(yard.quantity || '0');
+                              const price = qty ? bundlePriceBoughtFinal / qty : 0;
+                              return price.toLocaleString();
+                            })()}</div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Yard Price Sell</label>
+                            <input
+                              type="number"
+                              placeholder={`Auto: ₦${(() => {
+                                const qty = parseFloat(yard.quantity || '0');
+                                const price = qty ? bundlePriceSellFinal / qty : 0;
+                                return price.toLocaleString();
+                              })()}`}
+                              value={yard.priceSell}
+                              onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceSell: e.target.value } : y) } : b))}
+                              className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
+                            />
+                            <div className="mt-1 text-[10px] font-bold text-gray-500">Auto: ₦{(() => {
+                              const qty = parseFloat(yard.quantity || '0');
+                              const price = qty ? bundlePriceSellFinal / qty : 0;
+                              return price.toLocaleString();
+                            })()}</div>
+                          </div>
+                          <div className="col-span-2">
+                            <button
+                              type="button"
+                              onClick={() => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: '', priceSell: '' } : y) } : b))}
+                              className="text-[10px] font-bold text-kwari-green"
+                            >
+                              Reset yard prices to auto
+                            </button>
+                          </div>
                         </div>
                         <div className="col-span-2">
                           <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Yard Image (inherits bundle image)</label>
