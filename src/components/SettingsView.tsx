@@ -6,6 +6,7 @@ import { Store, Plus, Trash2, LogOut, Download, Table, MapPin, Share2 } from 'lu
 import { useAuth } from '../hooks/useAuth';
 import { exportToCSV } from '../utils/exportData';
 import { shareDigitalCard } from '../utils/whatsapp';
+import { FEATURES } from '../lib/navigation';
 
 export function SettingsView() {
   const { t } = useTranslation();
@@ -104,7 +105,7 @@ export function SettingsView() {
             </div>
             <h3 className="text-xl font-bold text-gray-800">{t('shopProfile')}</h3>
           </div>
-          {!showAddShop && (user?.role === 'owner' || user?.role === 'manager') && (
+          {!showAddShop && FEATURES.canManageShops(user?.role) && (
             <button 
               onClick={() => setShowAddShop(true)}
               className="p-2 bg-kwari-green text-white rounded-xl flex items-center space-x-1 font-bold text-sm"
@@ -201,7 +202,7 @@ export function SettingsView() {
                   >
                     <Share2 size={18} />
                   </button>
-                  {(user?.role === 'owner' || user?.role === 'manager') && (
+                  {FEATURES.canManageShops(user?.role) && (
                     <button onClick={() => shop.id && deleteShop(shop.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                   )}
                 </div>
@@ -218,7 +219,7 @@ export function SettingsView() {
         </div>
       </div>
 
-      {(user?.role === 'owner' || user?.role === 'manager') && (
+      {FEATURES.canExportData(user?.role) && (
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
           <div className="flex items-center space-x-3 mb-6">
             <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">

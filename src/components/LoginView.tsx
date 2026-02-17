@@ -10,7 +10,7 @@ interface LoginViewProps {
 
 export function LoginView({ onLoginSuccess }: LoginViewProps) {
   const { t } = useTranslation();
-  const [method, setStepMethod] = useState<'phone' | 'email'>('email');
+  const [method, setMethod] = useState<'phone' | 'email'>('email');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -84,8 +84,11 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
           </div>
           <h1 className="text-3xl font-black text-gray-900">Check your Email</h1>
           <p className="text-gray-500">
-            We've sent a login link to <span className="font-bold text-gray-800">{email}</span>. 
-            Please click the link in your email to log in.
+            We've sent a magic login link to <span className="font-bold text-gray-800">{email}</span>. 
+            Click the link in your email to instantly log in.
+          </p>
+          <p className="text-xs text-gray-400">
+            If you haven't been invited, please contact the shop owner.
           </p>
           <button
             onClick={() => setStep('input')}
@@ -108,15 +111,20 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
           <h1 className="text-3xl font-black text-gray-900">{t('appName')}</h1>
           <p className="text-gray-500 mt-2">
             {step === 'input' 
-              ? `Enter your ${method} to start` 
+              ? `Enter your ${method === 'email' ? 'email address' : 'phone number'} to login` 
               : 'Enter the code sent to your phone'}
           </p>
+          {step === 'input' && method === 'email' && (
+            <p className="text-xs text-gray-400 mt-2">
+              Staff must be invited by the owner before they can login.
+            </p>
+          )}
         </div>
 
         {step === 'input' && (
           <div className="flex p-1 bg-gray-100 rounded-2xl mb-4">
             <button
-              onClick={() => { setStepMethod('email'); setError(''); }}
+              onClick={() => { setMethod('email'); setError(''); }}
               className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${
                 method === 'email' ? 'bg-white shadow-sm text-kwari-green' : 'text-gray-500'
               }`}
@@ -124,7 +132,7 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
               Email
             </button>
             <button
-              onClick={() => { setStepMethod('phone'); setError(''); }}
+              onClick={() => { setMethod('phone'); setError(''); }}
               className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${
                 method === 'phone' ? 'bg-white shadow-sm text-kwari-green' : 'text-gray-500'
               }`}
@@ -191,7 +199,7 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
                 >
                   {loading ? <Loader2 className="animate-spin" /> : (
                     <>
-                      <span>Send Magic Link</span>
+                      <span>Send Login Link</span>
                       <ArrowRight size={20} />
                     </>
                   )}

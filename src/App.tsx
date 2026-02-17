@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import { 
-  LayoutDashboard, 
   ShoppingBag, 
   Package, 
   Users, 
@@ -14,26 +13,20 @@ import {
   Bell,
   LogOut,
   User,
-  BarChart3,
-  Settings as SettingsIcon,
   ArrowRightLeft,
   Store,
-  Receipt,
   Eye,
   EyeOff,
   Star,
   RotateCcw,
-  Truck,
   FileText,
   Search,
   Mic,
   Moon,
   Printer,
-  Gavel,
   ShieldAlert,
   Trash2,
-  TrendingDown,
-  BookOpen
+  TrendingDown
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { clsx, type ClassValue } from 'clsx';
@@ -58,7 +51,7 @@ import { useSyncManager } from './hooks/useSyncManager';
 import { useAuth } from './hooks/useAuth';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, reverseSale, addDebtPayment, flagCustomer } from './lib/db';
-import { hasPermission } from './lib/permissions';
+import { getNavItemsForRole, getMobileNavItemsForRole, FEATURES } from './lib/navigation';
 import { sendDebtReminder, shareProfessionalReceipt, shareWaybill, shareNewArrivals } from './utils/whatsapp';
 import { generateCustomerStatement } from './utils/reportGenerator';
 import { account } from './api/appwrite';
@@ -84,7 +77,13 @@ function App() {
   const [isSearchingVoice, setIsSearchingVoice] = useState(false);
   
   const { user, loading: authLoading, checkUser, logout } = useAuth();
-  const { isOnline, isSyncing } = useSyncManager();
+  const { isOnline, isSyncing, pullFromCloud } = useSyncManager();
+
+  useEffect(() => {
+    if (user?.appwriteId && isOnline) {
+      pullFromCloud();
+    }
+  }, [user?.appwriteId, isOnline, pullFromCloud]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -231,39 +230,12 @@ function App() {
   };
 
   const navItems = useMemo(() => {
-    const items = [
-      { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard, public: true },
-      { id: 'sales', label: t('sales'), icon: ShoppingBag, public: true },
-      { id: 'inventory', label: t('inventory'), icon: Package, public: true },
-      { id: 'market_dues', label: 'Market Dues', icon: Gavel, public: false },
-      { id: 'expenses', label: t('expenses'), icon: Receipt, public: false },
-      { id: 'suppliers', label: 'Suppliers', icon: Truck, public: false },
-      { id: 'bashi', label: t('bashi'), icon: Wallet, public: true },
-      { id: 'brokers', label: t('brokers'), icon: Users, public: false },
-      { id: 'calculators', label: t('calculators'), icon: Calculator, public: false },
-      { id: 'reports', label: t('reports'), icon: BarChart3, public: false },
-      { id: 'staff', label: 'Staff', icon: Users, public: false },
-      { id: 'manual', label: 'Manual', icon: BookOpen, public: true },
-      { id: 'settings', label: t('settings'), icon: SettingsIcon, public: true },
-    ];
+    return getNavItemsForRole(user?.role);
+  }, [user?.role]);
 
-    if (!user) return items.filter(i => i.public);
-    
-    // Filter based on role permissions
-    if (user.role === 'owner') return items;
-    
-    // For other roles, filter out "private" items unless specific logic added
-    // For now, let's just say only owner sees reports/staff/expenses
-    if (user.role === 'sales_boy') {
-      return items.filter(item => ['dashboard', 'sales', 'inventory', 'bashi', 'manual', 'settings'].includes(item.id));
-    }
-    
-    if (user.role === 'manager') {
-       return items.filter(item => item.id !== 'staff'); // Manager sees everything except staff management
-    }
-
-    return items;
-  }, [user, t]);
+  const mobileNavItems = useMemo(() => {
+    return getMobileNavItemsForRole(user?.role);
+  }, [user?.role]);
 
   if (authLoading || verifyingLink) {
     return (
@@ -318,28 +290,30 @@ function App() {
               )}
             >
               <item.icon size={18} />
-              <span className="font-bold text-sm">{item.label}</span>
+              <span className="font-bold text-sm">{t(item.labelKey)}</span>
             </button>
           ))}
         </nav>
         
         {/* Sync Status & Privacy */}
         <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-3">
-          <button 
-            onClick={() => setPrivacyMode(!privacyMode)}
-            className={cn(
-              "flex items-center justify-between w-full p-2 rounded-lg text-xs font-bold transition-all",
-              privacyMode ? "bg-amber-100 text-amber-700" : "bg-gray-200 text-gray-600"
-            )}
-          >
-            <div className="flex items-center space-x-2">
-              {privacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
-              <span>{t('alhajiMode')}</span>
-            </div>
-            <div className={cn("w-8 h-4 rounded-full relative transition-colors", privacyMode ? "bg-amber-500" : "bg-gray-400")}>
-               <div className={cn("absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all", privacyMode ? "right-0.5" : "left-0.5")} />
-            </div>
-          </button>
+          {FEATURES.canTogglePrivacyMode(user?.role) && (
+            <button 
+              onClick={() => setPrivacyMode(!privacyMode)}
+              className={cn(
+                "flex items-center justify-between w-full p-2 rounded-lg text-xs font-bold transition-all",
+                privacyMode ? "bg-amber-100 text-amber-700" : "bg-gray-200 text-gray-600"
+              )}
+            >
+              <div className="flex items-center space-x-2">
+                {privacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
+                <span>{t('alhajiMode')}</span>
+              </div>
+              <div className={cn("w-8 h-4 rounded-full relative transition-colors", privacyMode ? "bg-amber-500" : "bg-gray-400")}>
+                 <div className={cn("absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all", privacyMode ? "right-0.5" : "left-0.5")} />
+              </div>
+            </button>
+          )}
 
           <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest">
             <span>{isOnline ? 'Online' : 'Offline'}</span>
@@ -368,9 +342,11 @@ function App() {
       <header className="bg-white border-b border-gray-200 p-4 sticky top-0 z-10 flex justify-between items-center md:hidden">
         <h1 className="text-xl font-bold text-kwari-green">{t('appName')}</h1>
         <div className="flex items-center space-x-3">
-          <button onClick={() => setPrivacyMode(!privacyMode)} className={cn("p-2 rounded-full", privacyMode ? "text-amber-600 bg-amber-50" : "text-gray-400")}>
-            {privacyMode ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
+          {FEATURES.canTogglePrivacyMode(user?.role) && (
+            <button onClick={() => setPrivacyMode(!privacyMode)} className={cn("p-2 rounded-full", privacyMode ? "text-amber-600 bg-amber-50" : "text-gray-400")}>
+              {privacyMode ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          )}
           {!isOnline && <CloudOff size={20} className="text-red-400" />}
           <button onClick={toggleLanguage} className="p-2 text-gray-600 hover:bg-gray-100 rounded-full">
             <Languages size={20} />
@@ -412,7 +388,7 @@ function App() {
                   <Trash2 size={20} />
                   <span>{showRemnantsOnly ? 'All Items' : 'Rage-rage'}</span>
                 </button>
-                {showRemnantsOnly && hasPermission(user?.role, 'manage_inventory') && (
+                {showRemnantsOnly && FEATURES.canEditInventory(user?.role) && (
                   <button 
                     onClick={handleFlashSale}
                     className="bg-red-600 text-white p-3 rounded-xl flex items-center space-x-2 font-bold shadow-lg shadow-red-100 hover:bg-opacity-90 transition-all"
@@ -421,7 +397,7 @@ function App() {
                     <span>Flash Sale</span>
                   </button>
                 )}
-                {hasPermission(user?.role, 'manage_inventory') && (
+                {FEATURES.canAddInventory(user?.role) && (
                   <>
                     <button onClick={() => setShowTransfer(true)} className="bg-white text-kwari-green border border-kwari-green p-3 rounded-xl flex items-center space-x-2 font-bold hover:bg-green-50 transition-all">
                       <ArrowRightLeft size={20} />
@@ -435,7 +411,7 @@ function App() {
                 )}
               </div>
             )}
-            {activeTab === 'expenses' && !showAddExpense && hasPermission(user?.role, 'manage_expenses') && (
+            {activeTab === 'expenses' && !showAddExpense && FEATURES.canManageExpenses(user?.role) && (
               <button onClick={() => setShowAddExpense(true)} className="bg-kwari-red text-white p-3 rounded-xl flex items-center space-x-2 font-bold shadow-lg shadow-red-100 hover:bg-opacity-90 transition-all">
                 <Plus size={20} />
                 <span>{t('add')}</span>
@@ -452,9 +428,11 @@ function App() {
                       <Store size={48} className="mx-auto text-kwari-green mb-4" />
                       <h3 className="text-xl font-bold text-gray-800 mb-2">Welcome to KwariBook!</h3>
                       <p className="text-gray-600 mb-6">To start recording sales, you first need to add your shop.</p>
-                      <button onClick={() => setActiveTab('settings')} className="bg-kwari-green text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-green-100 hover:bg-opacity-90 transition-all">
-                        Set Up My Shop
-                      </button>
+                      {FEATURES.canManageShops(user?.role) && (
+                        <button onClick={() => setActiveTab('settings')} className="bg-kwari-green text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-green-100 hover:bg-opacity-90 transition-all">
+                          Set Up My Shop
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -474,18 +452,24 @@ function App() {
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <button onClick={() => { setActiveTab('sales'); setShowAddSale(true); }} className="p-4 bg-kwari-green text-white rounded-xl flex flex-col items-center justify-center space-y-2 shadow-md">
-                          <Plus size={24} /> <span className="text-xs font-bold">{t('addSale')}</span>
-                        </button>
-                        <button onClick={() => { setActiveTab('inventory'); setShowAddInventory(true); }} className="p-4 bg-white text-gray-700 border border-gray-200 rounded-xl flex flex-col items-center justify-center space-y-2 hover:bg-gray-50 transition-all">
-                          <Package size={24} className="text-kwari-gold" /> <span className="text-xs font-bold">{t('addInventory')}</span>
-                        </button>
+                        {FEATURES.canAddSale(user?.role) && (
+                          <button onClick={() => { setActiveTab('sales'); setShowAddSale(true); }} className="p-4 bg-kwari-green text-white rounded-xl flex flex-col items-center justify-center space-y-2 shadow-md">
+                            <Plus size={24} /> <span className="text-xs font-bold">{t('addSale')}</span>
+                          </button>
+                        )}
+                        {FEATURES.canAddInventory(user?.role) && (
+                          <button onClick={() => { setActiveTab('inventory'); setShowAddInventory(true); }} className="p-4 bg-white text-gray-700 border border-gray-200 rounded-xl flex flex-col items-center justify-center space-y-2 hover:bg-gray-50 transition-all">
+                            <Package size={24} className="text-kwari-gold" /> <span className="text-xs font-bold">{t('addInventory')}</span>
+                          </button>
+                        )}
                         <button onClick={() => setShowEOD(true)} className="p-4 bg-gray-900 text-white rounded-xl flex flex-col items-center justify-center space-y-2 shadow-md">
                           <Moon size={24} className="text-kwari-green" /> <span className="text-xs font-bold">End of Day</span>
                         </button>
-                        <button onClick={() => setActiveTab('calculators')} className="p-4 bg-white text-gray-700 border border-gray-200 rounded-xl flex flex-col items-center justify-center space-y-2 hover:bg-gray-50 transition-all">
-                          <Calculator size={24} className="text-blue-500" /> <span className="text-xs font-bold">{t('calculators')}</span>
-                        </button>
+                        {FEATURES.canUseCalculators(user?.role) && (
+                          <button onClick={() => setActiveTab('calculators')} className="p-4 bg-white text-gray-700 border border-gray-200 rounded-xl flex flex-col items-center justify-center space-y-2 hover:bg-gray-50 transition-all">
+                            <Calculator size={24} className="text-blue-500" /> <span className="text-xs font-bold">{t('calculators')}</span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -541,7 +525,7 @@ function App() {
                                   {customer?.phone && (
                                     <button onClick={() => handleReportScam(customer.phone)} className="p-2 text-gray-400 hover:text-red-600" title="Report Fake Alert"><ShieldAlert size={20} /></button>
                                   )}
-                                  {(user?.role === 'owner' || hasPermission(user?.role, 'delete_sales')) && (
+                                  {FEATURES.canReverseSale(user?.role) && (
                                     <button onClick={() => sale.id && handleReverse(sale.id)} className="p-2 text-gray-400 hover:text-red-500" title={t('reverse')}><RotateCcw size={20} /></button>
                                   )}
                                 </>
@@ -791,13 +775,13 @@ function App() {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-2 z-20 overflow-x-auto shadow-2xl">
-        {navItems.slice(0, 5).map((item) => (
+        {mobileNavItems.map((item) => (
           <button
             key={item.id}
             onClick={() => { setActiveTab(item.id); setShowAddSale(false); setShowAddInventory(false); setShowAddBroker(false); setShowTransfer(false); setShowAddExpense(false); setShowEOD(false); }}
             className={cn("flex flex-col items-center p-2 rounded-lg transition-colors", activeTab === item.id && !showEOD ? "text-kwari-green" : "text-gray-500")}
           >
-            <item.icon size={18} /> <span className="text-[9px] mt-1 font-bold tracking-tight">{item.label}</span>
+            <item.icon size={18} /> <span className="text-[9px] mt-1 font-bold tracking-tight">{t(item.labelKey)}</span>
           </button>
         ))}
       </nav>

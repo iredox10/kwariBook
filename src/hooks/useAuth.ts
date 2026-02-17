@@ -20,16 +20,15 @@ export function useAuth() {
       // Check if user exists locally
       let existingUser = await db.users.where('appwriteId').equals(currentUser.$id).first();
       
-      // If not found by ID, check by phone (for pre-added staff)
-      if (!existingUser && currentUser.phone) {
-         const pendingUser = await db.users.filter(u => u.phone === currentUser.phone).first();
+      // If not found by ID, check by email (for pre-added staff via email invitation)
+      if (!existingUser && currentUser.email) {
+         const pendingUser = await db.users.filter(u => u.email?.toLowerCase() === currentUser.email?.toLowerCase()).first();
          if (pendingUser) {
             // Link the account
             await db.users.update(pendingUser.id!, {
                appwriteId: currentUser.$id,
-               // Use the Appwrite name if available, otherwise keep the pre-set name
                name: currentUser.name || pendingUser.name, 
-               email: currentUser.email || pendingUser.email,
+               phone: currentUser.phone || pendingUser.phone,
                updatedAt: Date.now()
             });
             existingUser = pendingUser;
@@ -37,19 +36,28 @@ export function useAuth() {
       }
       
       if (!existingUser) {
-        // First user is owner, others are sales_boy
+        // Check if this is a new user trying to access
         const userCount = await db.users.count();
-        const role = userCount === 0 ? 'owner' : 'sales_boy';
         
-        await addUser({
-          appwriteId: currentUser.$id,
-          name: currentUser.name,
-          email: currentUser.email,
-          phone: currentUser.phone,
-          role: role,
-          isActive: true,
-          shopIds: [] // Empty means access to all or none? Let's assume empty = all for owner, none for others unless specified
-        });
+        if (userCount === 0) {
+          // First user becomes owner
+          await addUser({
+            appwriteId: currentUser.$id,
+            name: currentUser.name,
+            email: currentUser.email,
+            phone: currentUser.phone,
+            role: 'owner',
+            isActive: true,
+            shopIds: []
+          });
+        } else {
+          // Unknown user - do NOT auto-create account
+          // They need to be invited first by the owner
+          await account.deleteSession('current');
+          setAppwriteUser(null);
+          alert('Access denied. Please contact the shop owner to be added as staff.');
+          return;
+        }
       } else {
         // Update local details if changed on Appwrite (optional, but good practice)
         if (existingUser.name !== currentUser.name || existingUser.phone !== currentUser.phone) {
@@ -60,7 +68,7 @@ export function useAuth() {
            });
         }
       }
-    } catch (err) {
+    } catch {
       setAppwriteUser(null);
     } finally {
       setLoading(false);

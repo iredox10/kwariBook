@@ -1,4 +1,4 @@
-import { Client, Databases, ID } from 'node-appwrite';
+import { Client, Databases, ID, Permission, Role } from 'node-appwrite';
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1';
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
@@ -13,6 +13,9 @@ const customersCollectionId = 'customers';
 const expensesCollectionId = 'expenses';
 const debtPaymentsCollectionId = 'debt_payments';
 const zakatCollectionId = 'zakat';
+const suppliersCollectionId = 'suppliers';
+const supplierTransactionsCollectionId = 'supplier_transactions';
+const usersCollectionId = 'users';
 
 if (!projectId) console.log('Missing VITE_APPWRITE_PROJECT_ID');
 if (!apiKey) console.log('Missing APPWRITE_API_KEY');
@@ -116,6 +119,11 @@ async function setup() {
     await setupCollection(shopsCollectionId, 'Shops', [
       { key: 'name', type: 'string', size: 255, required: true },
       { key: 'address', type: 'string', size: 500, required: true },
+      { key: 'building', type: 'string', size: 255, required: false },
+      { key: 'block', type: 'string', size: 50, required: false },
+      { key: 'floor', type: 'string', size: 50, required: false },
+      { key: 'landmark', type: 'string', size: 255, required: false },
+      { key: 'logo', type: 'string', size: 100000, required: false },
     ]);
 
     // 9. Setup Debt Payments Collection
@@ -133,6 +141,38 @@ async function setup() {
       { key: 'date', type: 'datetime', required: true },
       { key: 'note', type: 'string', size: 500, required: false },
       { key: 'localId', type: 'integer', required: true },
+    ]);
+
+    // 11. Setup Suppliers Collection
+    await setupCollection(suppliersCollectionId, 'Suppliers', [
+      { key: 'name', type: 'string', size: 255, required: true },
+      { key: 'phone', type: 'string', size: 20, required: false },
+      { key: 'currency', type: 'string', size: 10, required: true, default: 'NGN' },
+      { key: 'totalDebt', type: 'double', required: true, default: 0 },
+      { key: 'localId', type: 'integer', required: true },
+    ]);
+
+    // 12. Setup Supplier Transactions Collection
+    await setupCollection(supplierTransactionsCollectionId, 'Supplier Transactions', [
+      { key: 'supplierId', type: 'integer', required: true },
+      { key: 'amount', type: 'double', required: true },
+      { key: 'currency', type: 'string', size: 10, required: true },
+      { key: 'rate', type: 'double', required: false },
+      { key: 'type', type: 'string', size: 20, required: true },
+      { key: 'date', type: 'datetime', required: true },
+      { key: 'description', type: 'string', size: 500, required: false },
+      { key: 'localId', type: 'integer', required: true },
+    ]);
+
+    // 13. Setup Users Collection (for multi-device sync)
+    await setupCollection(usersCollectionId, 'Users', [
+      { key: 'appwriteId', type: 'string', size: 255, required: true },
+      { key: 'name', type: 'string', size: 255, required: true },
+      { key: 'phone', type: 'string', size: 20, required: false },
+      { key: 'email', type: 'string', size: 255, required: false },
+      { key: 'role', type: 'string', size: 20, required: true, default: 'sales_boy' },
+      { key: 'shopIds', type: 'string', size: 1000, required: false },
+      { key: 'isActive', type: 'boolean', required: true, default: true },
     ]);
 
     console.log('Appwrite setup completed successfully!');
