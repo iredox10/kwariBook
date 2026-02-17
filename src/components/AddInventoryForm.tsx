@@ -1,7 +1,7 @@
 import { useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { addInventoryItem, db } from '../lib/db';
-import { X, Camera } from 'lucide-react';
+import { addInventoryItem, addDealerHierarchy, db } from '../lib/db';
+import { X, Camera, Plus, Trash2 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../hooks/useAuth';
 
@@ -16,6 +16,7 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
   const shops = useLiveQuery(() => db.shops.toArray());
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [mode, setMode] = useState<'simple' | 'dealer'>('simple');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -29,6 +30,21 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
   const [barcode, setBarcode] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dealerName, setDealerName] = useState('');
+  const [dealerQty, setDealerQty] = useState('');
+  const [dealerBuy, setDealerBuy] = useState('');
+  const [dealerSell, setDealerSell] = useState('');
+  const [bundles, setBundles] = useState<Array<{ quantity: string; priceBought: string; priceSell: string; color: string; yards: Array<{ name: string; color: string; quantity: string; priceBought: string; priceSell: string; }>; }>>([
+    {
+      quantity: '',
+      priceBought: '',
+      priceSell: '',
+      color: '',
+      yards: [
+        { name: '', color: '', quantity: '', priceBought: '', priceSell: '' }
+      ]
+    }
+  ]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,25 +70,59 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name || !quantity || !price || !shopId || !user) return;
+    if (!shopId || !user) return;
 
     setIsSubmitting(true);
     try {
-      await addInventoryItem({
-        name,
-        category,
-        quantity: parseFloat(quantity),
-        unit,
-        pricePerUnit: parseFloat(price),
-        purchasePrice: parseFloat(purchasePrice) || 0,
-        purchaseCurrency,
-        wholesalePrice: wholesalePrice ? parseFloat(wholesalePrice) : undefined,
-        wholesaleThreshold: wholesaleThreshold ? parseFloat(wholesaleThreshold) : undefined,
-        photo: photo || undefined,
-        barcode: barcode || undefined,
-        shopId: parseInt(shopId),
-        createdBy: user.phone || user.email || 'Unknown',
-      });
+      if (mode === 'simple') {
+        if (!name || !quantity || !price) return;
+        await addInventoryItem({
+          name,
+          category,
+          quantity: parseFloat(quantity),
+          unit,
+          pricePerUnit: parseFloat(price),
+          purchasePrice: parseFloat(purchasePrice) || 0,
+          purchaseCurrency,
+          wholesalePrice: wholesalePrice ? parseFloat(wholesalePrice) : undefined,
+          wholesaleThreshold: wholesaleThreshold ? parseFloat(wholesaleThreshold) : undefined,
+          photo: photo || undefined,
+          barcode: barcode || undefined,
+          shopId: parseInt(shopId),
+          createdBy: user.phone || user.email || 'Unknown',
+        });
+      } else {
+        if (!dealerName || !dealerQty || !dealerBuy || !dealerSell) return;
+        const parsedBundles = bundles.map(bundle => ({
+          quantity: parseFloat(bundle.quantity || '0'),
+          priceBought: parseFloat(bundle.priceBought || '0'),
+          priceSell: parseFloat(bundle.priceSell || '0'),
+          color: bundle.color,
+          shopId: parseInt(shopId)
+        }));
+        const yardsByBundle = bundles.map(bundle =>
+          bundle.yards.map(yard => ({
+            name: yard.name,
+            color: yard.color,
+            quantity: parseFloat(yard.quantity || '0'),
+            priceBought: parseFloat(yard.priceBought || '0'),
+            priceSell: parseFloat(yard.priceSell || '0'),
+            shopId: parseInt(shopId)
+          }))
+        );
+        await addDealerHierarchy(
+          {
+            name: dealerName,
+            quantity: parseFloat(dealerQty),
+            priceBought: parseFloat(dealerBuy),
+            priceSell: parseFloat(dealerSell),
+            shopId: parseInt(shopId),
+            createdBy: user.phone || user.email || 'Unknown'
+          },
+          parsedBundles,
+          yardsByBundle
+        );
+      }
       onSuccess();
     } catch (error) {
       console.error('Failed to add inventory:', error);
@@ -147,6 +197,32 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
         <div className="grid grid-cols-1 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Inventory Type
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMode('simple')}
+                className={`p-3 rounded-lg border font-bold text-sm ${mode === 'simple' ? 'bg-kwari-green text-white border-kwari-green' : 'bg-white text-gray-600 border-gray-200'}`}
+              >
+                Simple Item
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('dealer')}
+                className={`p-3 rounded-lg border font-bold text-sm ${mode === 'dealer' ? 'bg-kwari-green text-white border-kwari-green' : 'bg-white text-gray-600 border-gray-200'}`}
+              >
+                Dealer → Bundle → Yard
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {mode === 'simple' && (
+          <>
+        <div className="grid grid-cols-1 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Barcode ID (Optional)
             </label>
             <input
@@ -209,7 +285,7 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
             <div className="flex space-x-2">
               <select 
                 value={purchaseCurrency}
-                onChange={(e) => setPurchaseCurrency(e.target.value as any)}
+                onChange={(e) => setPurchaseCurrency(e.target.value as 'NGN' | 'USD' | 'RMB')}
                 className="p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none text-sm font-bold"
               >
                 <option value="NGN">₦</option>
@@ -271,7 +347,7 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
             </label>
             <select
               value={unit}
-              onChange={(e) => setUnit(e.target.value as any)}
+              onChange={(e) => setUnit(e.target.value as 'suit' | 'bundle' | 'bale' | 'yards' | 'meters')}
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-kwari-green focus:border-transparent outline-none transition-all"
             >
               <option value="suit">{t('suit')}</option>
@@ -299,6 +375,187 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
             {isSubmitting ? t('recording') : t('save')}
           </button>
         </div>
+          </>
+        )}
+
+        {mode === 'dealer' && (
+          <>
+            <div className="bg-kwari-green/5 p-4 rounded-xl border border-kwari-green/10 space-y-4">
+              <h4 className="font-bold text-gray-800">Dealer Details</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dealer Name</label>
+                  <input
+                    type="text"
+                    value={dealerName}
+                    onChange={(e) => setDealerName(e.target.value)}
+                    className="w-full p-3 bg-white border border-gray-200 rounded-lg outline-none"
+                    placeholder="e.g. Atampa Dealer"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dealer Quantity</label>
+                  <input
+                    type="number"
+                    value={dealerQty}
+                    onChange={(e) => setDealerQty(e.target.value)}
+                    className="w-full p-3 bg-white border border-gray-200 rounded-lg outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price Bought</label>
+                  <input
+                    type="number"
+                    value={dealerBuy}
+                    onChange={(e) => setDealerBuy(e.target.value)}
+                    className="w-full p-3 bg-white border border-gray-200 rounded-lg outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price to Sell</label>
+                  <input
+                    type="number"
+                    value={dealerSell}
+                    onChange={(e) => setDealerSell(e.target.value)}
+                    className="w-full p-3 bg-white border border-gray-200 rounded-lg outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-gray-800">Bundles</h4>
+                <button
+                  type="button"
+                  onClick={() => setBundles(prev => [...prev, { quantity: '', priceBought: '', priceSell: '', color: '', yards: [{ name: '', color: '', quantity: '', priceBought: '', priceSell: '' }] }])}
+                  className="flex items-center space-x-2 text-kwari-green font-bold"
+                >
+                  <Plus size={16} />
+                  <span>Add Bundle</span>
+                </button>
+              </div>
+
+              {bundles.map((bundle, bIndex) => (
+                <div key={bIndex} className="bg-white p-4 rounded-xl border border-gray-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-bold text-gray-700">Bundle {bIndex + 1}</h5>
+                    {bundles.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setBundles(prev => prev.filter((_, i) => i !== bIndex))}
+                        className="text-red-500"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <input
+                      type="number"
+                      placeholder="Quantity"
+                      value={bundle.quantity}
+                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, quantity: e.target.value } : b))}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Color"
+                      value={bundle.color}
+                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, color: e.target.value } : b))}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Price Bought"
+                      value={bundle.priceBought}
+                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, priceBought: e.target.value } : b))}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Price Sell"
+                      value={bundle.priceSell}
+                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, priceSell: e.target.value } : b))}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h6 className="font-bold text-gray-600">Yards</h6>
+                      <button
+                        type="button"
+                        onClick={() => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: [...b.yards, { name: '', color: '', quantity: '', priceBought: '', priceSell: '' }] } : b))}
+                        className="text-kwari-green text-sm font-bold"
+                      >
+                        <Plus size={14} /> Add Yard
+                      </button>
+                    </div>
+
+                    {bundle.yards.map((yard, yIndex) => (
+                      <div key={yIndex} className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Yard Name"
+                          value={yard.name}
+                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, name: e.target.value } : y) } : b))}
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Color"
+                          value={yard.color}
+                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, color: e.target.value } : y) } : b))}
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Quantity"
+                          value={yard.quantity}
+                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, quantity: e.target.value } : y) } : b))}
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Price Bought"
+                          value={yard.priceBought}
+                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: e.target.value } : y) } : b))}
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Price Sell"
+                          value={yard.priceSell}
+                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceSell: e.target.value } : y) } : b))}
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg col-span-2"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-4 flex space-x-3">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 p-3 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 p-3 bg-kwari-green text-white font-bold rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? t('recording') : t('save')}
+              </button>
+            </div>
+          </>
+        )}
       </form>
     </div>
   );

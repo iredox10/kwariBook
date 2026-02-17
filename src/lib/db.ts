@@ -81,6 +81,43 @@ interface InventoryItem {
   updatedAt: number;
 }
 
+interface Dealer {
+  id?: number;
+  name: string;
+  quantity: number;
+  priceBought: number;
+  priceSell: number;
+  shopId: number;
+  createdBy: string;
+  appwriteId?: string;
+  updatedAt: number;
+}
+
+interface Bundle {
+  id?: number;
+  dealerId: number;
+  quantity: number;
+  priceBought: number;
+  priceSell: number;
+  color: string;
+  shopId: number;
+  appwriteId?: string;
+  updatedAt: number;
+}
+
+interface Yard {
+  id?: number;
+  bundleId: number;
+  name: string;
+  color: string;
+  quantity: number;
+  priceBought: number;
+  priceSell: number;
+  shopId: number;
+  appwriteId?: string;
+  updatedAt: number;
+}
+
 interface Broker {
   id?: number;
   name: string;
@@ -175,7 +212,7 @@ interface SyncQueueItem {
   id?: number;
   action: 'CREATE' | 'UPDATE' | 'DELETE';
   collection: string;
-  payload: any;
+  payload: object;
   timestamp: number;
 }
 
@@ -186,6 +223,9 @@ const db = new Dexie('KwariBookDB') as Dexie & {
   suppliers: EntityTable<Supplier, 'id'>;
   supplier_transactions: EntityTable<SupplierTransaction, 'id'>;
   inventory: EntityTable<InventoryItem, 'id'>;
+  dealers: EntityTable<Dealer, 'id'>;
+  bundles: EntityTable<Bundle, 'id'>;
+  yards: EntityTable<Yard, 'id'>;
   brokers: EntityTable<Broker, 'id'>;
   shops: EntityTable<Shop, 'id'>;
   transfers: EntityTable<StockTransfer, 'id'>;
@@ -197,13 +237,16 @@ const db = new Dexie('KwariBookDB') as Dexie & {
   sync_queue: EntityTable<SyncQueueItem, 'id'>;
 };
 
-db.version(17).stores({
+db.version(18).stores({
   sales: '++id, customerName, customerId, date, status, shopId, isReversed, createdBy, appwriteId',
   customers: '++id, name, phone, appwriteId',
   flagged_customers: '++id, phone',
   suppliers: '++id, name, appwriteId',
   supplier_transactions: '++id, supplierId, date, type',
   inventory: '++id, name, category, unit, shopId, createdBy, barcode, parentId, isRemnant, appwriteId',
+  dealers: '++id, name, shopId, createdBy, appwriteId',
+  bundles: '++id, dealerId, color, shopId, appwriteId',
+  yards: '++id, bundleId, name, color, shopId, appwriteId',
   brokers: '++id, name, phone, appwriteId',
   shops: '++id, name, appwriteId',
   transfers: '++id, fromShopId, toShopId, productId, date, createdBy, appwriteId',
@@ -306,6 +349,54 @@ export async function addInventoryItem(item: Omit<InventoryItem, 'id' | 'updated
   return id;
 }
 
+export async function addDealerHierarchy(
+  dealer: Omit<Dealer, 'id' | 'updatedAt'>,
+  bundles: Array<Omit<Bundle, 'id' | 'updatedAt' | 'dealerId'>>,
+  yardsByBundle: Array<Array<Omit<Yard, 'id' | 'updatedAt' | 'bundleId'>>>
+) {
+  return await db.transaction('rw', [db.dealers, db.bundles, db.yards, db.inventory, db.sync_queue], async () => {
+    const dealerData: Dealer = { ...dealer, updatedAt: Date.now() };
+    const dealerId = await db.dealers.add(dealerData);
+    if (!dealerId) throw new Error('Failed to create dealer');
+    await db.sync_queue.add({ action: 'CREATE', collection: 'dealers', payload: { ...dealerData, id: dealerId }, timestamp: Date.now() });
+
+    for (let i = 0; i < bundles.length; i += 1) {
+      const bundleData: Bundle = { ...bundles[i], dealerId, shopId: dealer.shopId, updatedAt: Date.now() };
+      const bundleId = await db.bundles.add(bundleData);
+      if (!bundleId) throw new Error('Failed to create bundle');
+      await db.sync_queue.add({ action: 'CREATE', collection: 'bundles', payload: { ...bundleData, id: bundleId }, timestamp: Date.now() });
+
+      const yards = yardsByBundle[i] || [];
+      for (const yard of yards) {
+        const yardData: Yard = { ...yard, bundleId, shopId: dealer.shopId, updatedAt: Date.now() };
+        const yardId = await db.yards.add(yardData);
+        if (!yardId) throw new Error('Failed to create yard');
+        await db.sync_queue.add({ action: 'CREATE', collection: 'yards', payload: { ...yardData, id: yardId }, timestamp: Date.now() });
+
+        await db.inventory.add({
+          name: yardData.name,
+          category: dealer.name,
+          quantity: yardData.quantity,
+          unit: 'yards',
+          pricePerUnit: yardData.priceSell,
+          purchasePrice: yardData.priceBought,
+          purchaseCurrency: 'NGN',
+          photo: undefined,
+          barcode: undefined,
+          isRemnant: false,
+          parentId: bundleId,
+          shopId: dealer.shopId,
+          createdBy: dealer.createdBy,
+          appwriteId: undefined,
+          updatedAt: Date.now()
+        });
+      }
+    }
+
+    return dealerId;
+  });
+}
+
 export async function recordPayment(saleId: number) {
   const sale = await db.sales.get(saleId);
   if (!sale) return;
@@ -325,7 +416,7 @@ export async function transferStock(transfer: Omit<StockTransfer, 'id' | 'update
     const fromItem = await db.inventory.get(transfer.productId);
     if (!fromItem || fromItem.quantity < transfer.quantity) throw new Error('Insufficient stock for transfer');
     await db.inventory.update(transfer.productId, { quantity: fromItem.quantity - transfer.quantity, updatedAt: Date.now() });
-    let toItem = await db.inventory.where({ name: fromItem.name, shopId: transfer.toShopId }).first();
+    const toItem = await db.inventory.where({ name: fromItem.name, shopId: transfer.toShopId }).first();
     if (toItem) {
       await db.inventory.update(toItem.id!, { quantity: toItem.quantity + transfer.quantity, updatedAt: Date.now() });
     } else {
@@ -361,5 +452,5 @@ export async function addUser(user: Omit<User, 'id' | 'updatedAt'>) {
   return id;
 }
 
-export type { Sale, Customer, FlaggedCustomer, Supplier, SupplierTransaction, InventoryItem, Broker, Shop, StockTransfer, Expense, MarketLevy, ZakatPayment, DebtPayment, SyncQueueItem, User };
+export type { Sale, Customer, FlaggedCustomer, Supplier, SupplierTransaction, InventoryItem, Dealer, Bundle, Yard, Broker, Shop, StockTransfer, Expense, MarketLevy, ZakatPayment, DebtPayment, SyncQueueItem, User };
 export { db };
