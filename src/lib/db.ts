@@ -100,6 +100,7 @@ interface Bundle {
   priceBought: number;
   priceSell: number;
   color: string;
+  image?: string;
   shopId: number;
   appwriteId?: string;
   updatedAt: number;
@@ -110,6 +111,7 @@ interface Yard {
   bundleId: number;
   name: string;
   color: string;
+  image?: string;
   quantity: number;
   priceBought: number;
   priceSell: number;

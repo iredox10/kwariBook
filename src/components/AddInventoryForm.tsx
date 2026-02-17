@@ -35,13 +35,12 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
   const [dealerBuy, setDealerBuy] = useState('');
   const [dealerSell, setDealerSell] = useState('');
   const [bundleCount, setBundleCount] = useState('1');
-  const [bundlePriceBought, setBundlePriceBought] = useState('');
-  const [bundlePriceSell, setBundlePriceSell] = useState('');
-  const [bundles, setBundles] = useState<Array<{ color: string; yards: Array<{ name: string; color: string; quantity: string; priceBought: string; priceSell: string; }>; }>>([
+  const [bundles, setBundles] = useState<Array<{ color: string; image: string | null; yards: Array<{ name: string; color: string; quantity: string; priceBought: string; priceSell: string; image: string | null; }>; }>>([
     {
-      color: '',
+      color: '#000000',
+      image: null,
       yards: [
-        { name: '', color: '', quantity: '', priceBought: '', priceSell: '' }
+        { name: '', color: '#000000', quantity: '', priceBought: '', priceSell: '', image: null }
       ]
     }
   ]);
@@ -67,6 +66,32 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
       reader.readAsDataURL(file);
     }
   };
+
+  const pickColorFromImage = (e: React.MouseEvent<HTMLImageElement>, bundleIndex: number) => {
+    const imgEl = e.currentTarget;
+    if (!imgEl.naturalWidth || !imgEl.naturalHeight) return;
+    const rect = imgEl.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (imgEl.naturalWidth / rect.width);
+    const y = (e.clientY - rect.top) * (imgEl.naturalHeight / rect.height);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = imgEl.naturalWidth;
+    canvas.height = imgEl.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+    const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+    const hex = `#${[pixel[0], pixel[1], pixel[2]]
+      .map(v => v.toString(16).padStart(2, '0'))
+      .join('')}`;
+    setBundles(prev => prev.map((b, i) => i === bundleIndex ? { ...b, color: hex, yards: b.yards.map(y => ({ ...y, color: hex })) } : b));
+  };
+
+  const bundleCountNumber = Math.max(1, parseInt(bundleCount || '1', 10));
+  const dealerBuyNumber = parseFloat(dealerBuy || '0');
+  const dealerSellNumber = parseFloat(dealerSell || '0');
+  const bundlePriceBoughtComputed = bundleCountNumber ? dealerBuyNumber / bundleCountNumber : 0;
+  const bundlePriceSellComputed = bundleCountNumber ? dealerSellNumber / bundleCountNumber : 0;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -95,20 +120,27 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
         if (!dealerName || !dealerQty || !dealerBuy || !dealerSell) return;
         const parsedBundles = bundles.map(bundle => ({
           quantity: parseFloat(bundleCount || '0'),
-          priceBought: parseFloat(bundlePriceBought || '0'),
-          priceSell: parseFloat(bundlePriceSell || '0'),
+          priceBought: bundlePriceBoughtComputed,
+          priceSell: bundlePriceSellComputed,
           color: bundle.color,
+          image: bundle.image || undefined,
           shopId: parseInt(shopId)
         }));
         const yardsByBundle = bundles.map(bundle =>
-          bundle.yards.map(yard => ({
-            name: yard.name,
-            color: yard.color,
-            quantity: parseFloat(yard.quantity || '0'),
-            priceBought: parseFloat(yard.priceBought || '0'),
-            priceSell: parseFloat(yard.priceSell || '0'),
-            shopId: parseInt(shopId)
-          }))
+          bundle.yards.map(yard => {
+            const yardQty = parseFloat(yard.quantity || '0');
+            const yardPriceBought = yardQty ? bundlePriceBoughtComputed / yardQty : 0;
+            const yardPriceSell = yardQty ? bundlePriceSellComputed / yardQty : 0;
+            return {
+              name: dealerName,
+              color: bundle.color,
+              image: bundle.image || undefined,
+              quantity: yardQty,
+              priceBought: yardPriceBought,
+              priceSell: yardPriceSell,
+              shopId: parseInt(shopId)
+            };
+          })
         );
         await addDealerHierarchy(
           {
@@ -440,7 +472,7 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                           const next = [...prev];
                           if (count > next.length) {
                             for (let i = next.length; i < count; i += 1) {
-                              next.push({ color: '', yards: [{ name: '', color: '', quantity: '', priceBought: '', priceSell: '' }] });
+                              next.push({ color: '#000000', image: null, yards: [{ name: '', color: '#000000', quantity: '', priceBought: '', priceSell: '', image: null }] });
                             }
                           } else if (count < next.length) {
                             next.splice(count);
@@ -452,22 +484,16 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Bought</label>
-                    <input
-                      type="number"
-                      value={bundlePriceBought}
-                      onChange={(e) => setBundlePriceBought(e.target.value)}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
-                    />
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Bought (auto)</label>
+                    <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg font-bold text-gray-700">
+                      ₦{bundlePriceBoughtComputed.toLocaleString()}
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Sell</label>
-                    <input
-                      type="number"
-                      value={bundlePriceSell}
-                      onChange={(e) => setBundlePriceSell(e.target.value)}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
-                    />
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Price Sell (auto)</label>
+                    <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg font-bold text-gray-700">
+                      ₦{bundlePriceSellComputed.toLocaleString()}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -479,13 +505,66 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
-                    <input
-                      type="text"
-                      placeholder="Bundle Color"
-                      value={bundle.color}
-                      onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, color: e.target.value } : b))}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg"
-                    />
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={bundle.color}
+                        onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, color: e.target.value } : b))}
+                        className="w-12 h-12 p-1 bg-white border border-gray-200 rounded-lg"
+                        aria-label="Bundle color"
+                      />
+                      <span className="text-sm font-bold text-gray-600">{bundle.color}</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bundle Image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, image: reader.result as string } : b));
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                        className="w-full text-sm"
+                      />
+                      {bundle.image && (
+                        <img
+                          src={bundle.image}
+                          alt="Bundle"
+                          className="mt-2 w-28 h-28 object-cover rounded-lg border cursor-crosshair"
+                          title="Click to pick color"
+                          onClick={(e) => pickColorFromImage(e, bIndex)}
+                        />
+                      )}
+                      {bundle.image && (
+                        <div className="mt-2 flex items-center gap-3">
+                          {'EyeDropper' in window ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const picker = new (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper();
+                                try {
+                                  const result = await picker.open();
+                                  const hex = result.sRGBHex as string;
+                                  setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, color: hex, yards: b.yards.map(y => ({ ...y, color: hex })) } : b));
+                                } catch {
+                                  // User cancelled
+                                }
+                              }}
+                              className="text-xs font-bold text-kwari-green"
+                            >
+                              Use eyedropper
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-gray-400">Eyedropper not supported. Click image to pick color.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -493,7 +572,7 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                       <h6 className="font-bold text-gray-600">Yards</h6>
                       <button
                         type="button"
-                        onClick={() => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: [...b.yards, { name: '', color: '', quantity: '', priceBought: '', priceSell: '' }] } : b))}
+                        onClick={() => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: [...b.yards, { name: '', color: '#000000', quantity: '', priceBought: '', priceSell: '', image: null }] } : b))}
                         className="text-kwari-green text-sm font-bold"
                       >
                         <Plus size={14} /> Add Yard
@@ -502,20 +581,19 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
 
                     {bundle.yards.map((yard, yIndex) => (
                       <div key={yIndex} className="grid grid-cols-2 gap-2">
-                        <input
-                          type="text"
-                          placeholder="Yard Name"
-                          value={yard.name}
-                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, name: e.target.value } : y) } : b))}
-                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Color"
-                          value={yard.color}
-                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, color: e.target.value } : y) } : b))}
-                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
-                        />
+                        <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-700">
+                          {dealerName || 'Dealer Name'}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={bundle.color}
+                            onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, color: e.target.value, yards: b.yards.map((y) => ({ ...y, color: e.target.value })) } : b))}
+                            className="w-10 h-10 p-1 bg-white border border-gray-200 rounded-lg"
+                            aria-label="Yard color"
+                          />
+                          <span className="text-xs font-bold text-gray-600">{bundle.color}</span>
+                        </div>
                         <input
                           type="number"
                           placeholder="Quantity"
@@ -523,20 +601,28 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                           onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, quantity: e.target.value } : y) } : b))}
                           className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
                         />
-                        <input
-                          type="number"
-                          placeholder="Price Bought"
-                          value={yard.priceBought}
-                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: e.target.value } : y) } : b))}
-                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Price Sell"
-                          value={yard.priceSell}
-                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceSell: e.target.value } : y) } : b))}
-                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg col-span-2"
-                        />
+                        <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-700">
+                          Buy: ₦{(() => {
+                            const qty = parseFloat(yard.quantity || '0');
+                            const price = qty ? bundlePriceBoughtComputed / qty : 0;
+                            return price.toLocaleString();
+                          })()}
+                        </div>
+                        <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-700">
+                          Sell: ₦{(() => {
+                            const qty = parseFloat(yard.quantity || '0');
+                            const price = qty ? bundlePriceSellComputed / qty : 0;
+                            return price.toLocaleString();
+                          })()}
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Yard Image (inherits bundle image)</label>
+                          {bundle.image ? (
+                            <img src={bundle.image} alt="Yard" className="w-20 h-20 object-cover rounded-lg border" />
+                          ) : (
+                            <div className="text-xs text-gray-400">No bundle image</div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
