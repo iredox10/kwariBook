@@ -16,6 +16,9 @@ const SUPPLIERS_COLLECTION_ID = 'suppliers';
 const SUPPLIER_TRANSACTIONS_COLLECTION_ID = 'supplier_transactions';
 const SHOPS_COLLECTION_ID = 'shops';
 const USERS_COLLECTION_ID = 'users';
+const DEALERS_COLLECTION_ID = 'dealers';
+const BUNDLES_COLLECTION_ID = 'bundles';
+const YARDS_COLLECTION_ID = 'yards';
 
 export function useSyncManager() {
   const [isSyncing, setIsSyncing] = useState(false);
@@ -226,6 +229,60 @@ export function useSyncManager() {
                }
              );
           }
+        } else if (item.collection === 'dealers' && item.action === 'CREATE') {
+          const payload = item.payload as Record<string, unknown>;
+          const response = await databases.createDocument(
+            DATABASE_ID,
+            DEALERS_COLLECTION_ID,
+            ID.unique(),
+            {
+              name: payload.name,
+              quantity: payload.quantity,
+              priceBought: payload.priceBought,
+              priceSell: payload.priceSell,
+              shopId: payload.shopId,
+              createdBy: payload.createdBy,
+              localId: payload.id
+            }
+          );
+          await db.dealers.update(payload.id as number, { appwriteId: response.$id });
+        } else if (item.collection === 'bundles' && item.action === 'CREATE') {
+          const payload = item.payload as Record<string, unknown>;
+          const response = await databases.createDocument(
+            DATABASE_ID,
+            BUNDLES_COLLECTION_ID,
+            ID.unique(),
+            {
+              dealerId: payload.dealerId,
+              quantity: payload.quantity,
+              priceBought: payload.priceBought,
+              priceSell: payload.priceSell,
+              color: payload.color,
+              image: payload.image,
+              shopId: payload.shopId,
+              localId: payload.id
+            }
+          );
+          await db.bundles.update(payload.id as number, { appwriteId: response.$id });
+        } else if (item.collection === 'yards' && item.action === 'CREATE') {
+          const payload = item.payload as Record<string, unknown>;
+          const response = await databases.createDocument(
+            DATABASE_ID,
+            YARDS_COLLECTION_ID,
+            ID.unique(),
+            {
+              bundleId: payload.bundleId,
+              name: payload.name,
+              color: payload.color,
+              image: payload.image,
+              quantity: payload.quantity,
+              priceBought: payload.priceBought,
+              priceSell: payload.priceSell,
+              shopId: payload.shopId,
+              localId: payload.id
+            }
+          );
+          await db.yards.update(payload.id as number, { appwriteId: response.$id });
         }
         await db.sync_queue.delete(item.id!);
       } catch (error: unknown) {
@@ -439,6 +496,78 @@ export function useSyncManager() {
           }
         }
         console.log(`Pulled ${usersRes.documents.length} users`);
+      }
+
+      if (DEALERS_COLLECTION_ID) {
+        const dealersRes = await databases.listDocuments(DATABASE_ID, DEALERS_COLLECTION_ID, [Query.limit(5000)]);
+        for (const doc of dealersRes.documents) {
+          const existing = await db.dealers.where('appwriteId').equals(doc.$id).first();
+          const dealerData = {
+            name: doc.name,
+            quantity: doc.quantity,
+            priceBought: doc.priceBought,
+            priceSell: doc.priceSell,
+            shopId: doc.shopId,
+            createdBy: doc.createdBy,
+            appwriteId: doc.$id,
+            updatedAt: new Date(doc.$updatedAt).getTime()
+          };
+          if (existing) {
+            await db.dealers.update(existing.id!, dealerData);
+          } else {
+            await db.dealers.add(dealerData);
+          }
+        }
+        console.log(`Pulled ${dealersRes.documents.length} dealers`);
+      }
+
+      if (BUNDLES_COLLECTION_ID) {
+        const bundlesRes = await databases.listDocuments(DATABASE_ID, BUNDLES_COLLECTION_ID, [Query.limit(5000)]);
+        for (const doc of bundlesRes.documents) {
+          const existing = await db.bundles.where('appwriteId').equals(doc.$id).first();
+          const bundleData = {
+            dealerId: doc.dealerId,
+            quantity: doc.quantity,
+            priceBought: doc.priceBought,
+            priceSell: doc.priceSell,
+            color: doc.color,
+            image: doc.image,
+            shopId: doc.shopId,
+            appwriteId: doc.$id,
+            updatedAt: new Date(doc.$updatedAt).getTime()
+          };
+          if (existing) {
+            await db.bundles.update(existing.id!, bundleData);
+          } else {
+            await db.bundles.add(bundleData);
+          }
+        }
+        console.log(`Pulled ${bundlesRes.documents.length} bundles`);
+      }
+
+      if (YARDS_COLLECTION_ID) {
+        const yardsRes = await databases.listDocuments(DATABASE_ID, YARDS_COLLECTION_ID, [Query.limit(5000)]);
+        for (const doc of yardsRes.documents) {
+          const existing = await db.yards.where('appwriteId').equals(doc.$id).first();
+          const yardData = {
+            bundleId: doc.bundleId,
+            name: doc.name,
+            color: doc.color,
+            image: doc.image,
+            quantity: doc.quantity,
+            priceBought: doc.priceBought,
+            priceSell: doc.priceSell,
+            shopId: doc.shopId,
+            appwriteId: doc.$id,
+            updatedAt: new Date(doc.$updatedAt).getTime()
+          };
+          if (existing) {
+            await db.yards.update(existing.id!, yardData);
+          } else {
+            await db.yards.add(yardData);
+          }
+        }
+        console.log(`Pulled ${yardsRes.documents.length} yards`);
       }
 
       console.log('Pull from cloud complete!');

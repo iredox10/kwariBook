@@ -75,6 +75,9 @@ function App() {
   const [privacyMode, setPrivacyMode] = useState(false);
   const [inventorySearch, setInventorySearch] = useState('');
   const [isSearchingVoice, setIsSearchingVoice] = useState(false);
+  const [selectedDealerId, setSelectedDealerId] = useState<number | null>(null);
+  const [selectedBundleId, setSelectedBundleId] = useState<number | null>(null);
+  const [inventoryViewMode, setInventoryViewMode] = useState<'list' | 'dealer'>('list');
   
   const { user, loading: authLoading, checkUser, logout } = useAuth();
   const { isOnline, isSyncing, pullFromCloud } = useSyncManager();
@@ -119,6 +122,9 @@ function App() {
   };
   
   const inventory = useLiveQuery(() => db.inventory.toArray());
+  const bundles = useLiveQuery(() => db.bundles.toArray());
+  const dealers = useLiveQuery(() => db.dealers.toArray());
+  const yards = useLiveQuery(() => db.yards.toArray());
   const shops = useLiveQuery(() => db.shops.toArray());
   const handleFlashSale = async () => {
     const discount = prompt("Enter discount percentage for all remnants (e.g. 50):");
@@ -544,69 +550,275 @@ function App() {
                   {showAddInventory ? <AddInventoryForm onSuccess={() => setShowAddInventory(false)} onCancel={() => setShowAddInventory(false)} /> : 
                   showTransfer ? <StockTransferForm onSuccess={() => setShowTransfer(false)} onCancel={() => setShowTransfer(false)} /> : (
                     <>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                          <Search size={18} />
-                        </div>
-                        <input 
-                          type="text"
-                          value={inventorySearch}
-                          onChange={(e) => setInventorySearch(e.target.value)}
-                          placeholder="Speak or type to search fabrics..."
-                          className="w-full pl-10 pr-12 p-3 bg-white border border-gray-200 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-kwari-green"
-                        />
-                        <button 
-                          onClick={startInventoryVoiceSearch}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setInventoryViewMode('list')}
                           className={cn(
-                            "absolute inset-y-0 right-0 pr-3 flex items-center",
-                            isSearchingVoice ? "text-red-500 animate-pulse" : "text-gray-400"
+                            "flex-1 p-2 rounded-lg font-bold text-sm transition-all",
+                            inventoryViewMode === 'list' ? "bg-kwari-green text-white" : "bg-gray-100 text-gray-600"
                           )}
                         >
-                          <Mic size={20} />
+                          All Items
+                        </button>
+                        <button
+                          onClick={() => setInventoryViewMode('dealer')}
+                          className={cn(
+                            "flex-1 p-2 rounded-lg font-bold text-sm transition-all",
+                            inventoryViewMode === 'dealer' ? "bg-kwari-green text-white" : "bg-gray-100 text-gray-600"
+                          )}
+                        >
+                          Dealer View
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {filteredInventory?.map((item) => {
-                          const shop = shops?.find(s => s.id === item.shopId);
-                          return (
-                            <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between shadow-sm">
-                              <div className="flex items-center space-x-4">
-                                {item.photo && (
-                                  <img src={item.photo} alt={item.name} className="w-12 h-12 rounded-lg object-cover shadow-sm" />
-                                )}
-                                <div>
-                                  <p className="font-bold text-gray-800">{item.name}</p>
-                                  <div className="flex flex-wrap gap-1 mb-1">
-                                    <p className="text-[8px] text-kwari-green font-black uppercase tracking-tight bg-green-50 px-1.5 py-0.5 rounded">
-                                      {shop?.name || 'Unknown Shop'}
-                                    </p>
-                                    {item.isRemnant && (
-                                      <p className="text-[8px] text-amber-600 font-black uppercase tracking-tight bg-amber-50 px-1.5 py-0.5 rounded">
-                                        Remnant
-                                      </p>
-                                    )}
+                      {inventoryViewMode === 'list' && (
+                        <>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                              <Search size={18} />
+                            </div>
+                            <input 
+                              type="text"
+                              value={inventorySearch}
+                              onChange={(e) => setInventorySearch(e.target.value)}
+                              placeholder="Speak or type to search fabrics..."
+                              className="w-full pl-10 pr-12 p-3 bg-white border border-gray-200 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-kwari-green"
+                            />
+                            <button 
+                              onClick={startInventoryVoiceSearch}
+                              className={cn(
+                                "absolute inset-y-0 right-0 pr-3 flex items-center",
+                                isSearchingVoice ? "text-red-500 animate-pulse" : "text-gray-400"
+                              )}
+                            >
+                              <Mic size={20} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {filteredInventory?.map((item) => {
+                              const shop = shops?.find(s => s.id === item.shopId);
+                              const bundle = item.parentId ? bundles?.find(b => b.id === item.parentId) : undefined;
+                              return (
+                                <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-4">
+                                      {(item.photo || bundle?.image) && (
+                                        <img src={item.photo || bundle?.image} alt={item.name} className="w-12 h-12 rounded-lg object-cover shadow-sm" />
+                                      )}
+                                      <div>
+                                        <p className="font-bold text-gray-800">{item.name}</p>
+                                        <div className="flex flex-wrap gap-1 mb-1">
+                                          <p className="text-[8px] text-kwari-green font-black uppercase tracking-tight bg-green-50 px-1.5 py-0.5 rounded">
+                                            {shop?.name || 'Unknown Shop'}
+                                          </p>
+                                          {item.isRemnant && (
+                                            <p className="text-[8px] text-amber-600 font-black uppercase tracking-tight bg-amber-50 px-1.5 py-0.5 rounded">
+                                              Remnant
+                                            </p>
+                                          )}
+                                          {bundle?.color && (
+                                            <span className="text-[8px] font-black uppercase tracking-tight bg-gray-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                              <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: bundle.color }} />
+                                              {bundle.color}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-gray-500">{item.category}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <div className="text-right mr-2">
+                                        <p className="text-sm font-bold text-kwari-green">{item.quantity} {t(item.unit)}</p>
+                                        <p className="text-[10px] font-medium text-gray-500">Sell: {formatCurrency(item.pricePerUnit)}</p>
+                                        <p className="text-[10px] font-medium text-gray-500">Buy: {formatCurrency(item.purchasePrice)}</p>
+                                      </div>
+                                      <button 
+                                        onClick={() => setPrintItem(item)}
+                                        className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
+                                        title="Print Label"
+                                      >
+                                        <Printer size={18} />
+                                      </button>
+                                    </div>
                                   </div>
-                                  <p className="text-xs text-gray-500">{item.category}</p>
+                                  <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold text-gray-500">
+                                    <div>Barcode: {item.barcode || 'Auto'}</div>
+                                    <div>Unit: {t(item.unit)}</div>
+                                    <div>Dealer: {item.category || '—'}</div>
+                                    <div>Created by: {item.createdBy || '—'}</div>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <div className="text-right mr-2">
-                                  <p className="text-sm font-bold text-kwari-green">{item.quantity} {t(item.unit)}</p>
-                                  <p className="text-[10px] font-medium text-gray-500">{formatCurrency(item.pricePerUnit)}</p>
-                                </div>
-                                <button 
-                                  onClick={() => setPrintItem(item)}
-                                  className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
-                                  title="Print Label"
-                                >
-                                  <Printer size={18} />
-                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+
+                      {inventoryViewMode === 'dealer' && (
+                        <>
+                          {!selectedDealerId && (
+                            <div className="space-y-4">
+                              <h3 className="font-bold text-gray-800">Select a Dealer</h3>
+                              <div className="grid grid-cols-1 gap-3">
+                                {dealers?.map((dealer) => {
+                                  const shop = shops?.find(s => s.id === dealer.shopId);
+                                  const dealerBundles = bundles?.filter(b => b.dealerId === dealer.id) || [];
+                                  return (
+                                    <button
+                                      key={dealer.id}
+                                      onClick={() => setSelectedDealerId(dealer.id!)}
+                                      className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-left hover:border-kwari-green transition-all"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <p className="font-bold text-gray-800">{dealer.name}</p>
+                                          <p className="text-xs text-gray-500">{shop?.name || 'Unknown Shop'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-sm font-bold text-kwari-green">{dealer.quantity} bundles</p>
+                                          <p className="text-[10px] text-gray-500">Buy: {formatCurrency(dealer.priceBought)}</p>
+                                          <p className="text-[10px] text-gray-500">Sell: {formatCurrency(dealer.priceSell)}</p>
+                                        </div>
+                                      </div>
+                                      <div className="mt-2 flex gap-1 flex-wrap">
+                                        {dealerBundles.slice(0, 5).map((b) => (
+                                          <span
+                                            key={b.id}
+                                            className="inline-block w-4 h-4 rounded-full border"
+                                            style={{ backgroundColor: b.color }}
+                                            title={b.color}
+                                          />
+                                        ))}
+                                        {dealerBundles.length > 5 && (
+                                          <span className="text-[10px] text-gray-400">+{dealerBundles.length - 5} more</span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                                {(!dealers || dealers.length === 0) && (
+                                  <p className="text-center text-gray-400 py-8">No dealers yet. Add inventory using the Dealer → Bundle → Yard flow.</p>
+                                )}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
+                          )}
+
+                          {selectedDealerId && !selectedBundleId && (
+                            <div className="space-y-4">
+                              <button
+                                onClick={() => setSelectedDealerId(null)}
+                                className="text-kwari-green font-bold text-sm"
+                              >
+                                ← Back to Dealers
+                              </button>
+                              <h3 className="font-bold text-gray-800">
+                                {dealers?.find(d => d.id === selectedDealerId)?.name} - Select a Bundle
+                              </h3>
+                              <div className="grid grid-cols-1 gap-3">
+                                {bundles?.filter(b => b.dealerId === selectedDealerId).map((bundle) => {
+                                  const bundleYards = yards?.filter(y => y.bundleId === bundle.id) || [];
+                                  const totalYards = bundleYards.reduce((sum, y) => sum + y.quantity, 0);
+                                  return (
+                                    <button
+                                      key={bundle.id}
+                                      onClick={() => setSelectedBundleId(bundle.id!)}
+                                      className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-left hover:border-kwari-green transition-all"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        {bundle.image && (
+                                          <img src={bundle.image} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                                        )}
+                                        <div
+                                          className="w-12 h-12 rounded-lg border"
+                                          style={{ backgroundColor: bundle.color }}
+                                        />
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <p className="font-bold text-gray-800">Bundle</p>
+                                            <span className="text-[10px] font-black uppercase bg-gray-100 px-2 py-0.5 rounded">{bundle.color}</span>
+                                          </div>
+                                          <p className="text-xs text-gray-500">{bundleYards.length} yards • {totalYards} total quantity</p>
+                                          <p className="text-[10px] text-gray-500">
+                                            Buy: {formatCurrency(bundle.priceBought)} | Sell: {formatCurrency(bundle.priceSell)}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedDealerId && selectedBundleId && (
+                            <div className="space-y-4">
+                              <button
+                                onClick={() => setSelectedBundleId(null)}
+                                className="text-kwari-green font-bold text-sm"
+                              >
+                                ← Back to Bundles
+                              </button>
+                              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                <div className="flex items-center gap-3 mb-4">
+                                  {bundles?.find(b => b.id === selectedBundleId)?.image && (
+                                    <img 
+                                      src={bundles.find(b => b.id === selectedBundleId)?.image} 
+                                      alt="" 
+                                      className="w-16 h-16 rounded-lg object-cover" 
+                                    />
+                                  )}
+                                  <div
+                                    className="w-16 h-16 rounded-lg border"
+                                    style={{ backgroundColor: bundles?.find(b => b.id === selectedBundleId)?.color }}
+                                  />
+                                  <div>
+                                    <h3 className="font-bold text-gray-800">
+                                      {dealers?.find(d => d.id === selectedDealerId)?.name}
+                                    </h3>
+                                    <p className="text-xs text-gray-500">Bundle Color: {bundles?.find(b => b.id === selectedBundleId)?.color}</p>
+                                  </div>
+                                </div>
+                              </div>
+                              <h4 className="font-bold text-gray-800">Yards in this Bundle</h4>
+                              <div className="grid grid-cols-1 gap-3">
+                                {yards?.filter(y => y.bundleId === selectedBundleId).map((yard) => (
+                                  <div
+                                    key={yard.id}
+                                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        {yard.image && (
+                                          <img src={yard.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                                        )}
+                                        <div>
+                                          <p className="font-bold text-gray-800">{yard.name}</p>
+                                          <div className="flex items-center gap-1">
+                                            <span
+                                              className="inline-block w-3 h-3 rounded-full"
+                                              style={{ backgroundColor: yard.color }}
+                                            />
+                                            <span className="text-[10px] text-gray-500">{yard.color}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-sm font-bold text-kwari-green">{yard.quantity} yards</p>
+                                        <p className="text-[10px] text-gray-500">Buy: {formatCurrency(yard.priceBought)}</p>
+                                        <p className="text-[10px] text-gray-500">Sell: {formatCurrency(yard.priceSell)}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                                {yards?.filter(y => y.bundleId === selectedBundleId).length === 0 && (
+                                  <p className="text-center text-gray-400 py-4">No yards in this bundle.</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
 
                       {transfers && transfers.length > 0 && (
                         <div className="mt-8">

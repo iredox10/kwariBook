@@ -628,7 +628,10 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                           type="number"
                           placeholder="Quantity"
                           value={yard.quantity}
-                          onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, quantity: e.target.value } : y) } : b))}
+                          onChange={(e) => setBundles(prev => prev.map((b) => ({
+                            ...b,
+                            yards: b.yards.map((y, j) => j === yIndex ? { ...y, quantity: e.target.value } : y)
+                          })))}
                           className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
                         />
                         <div className="col-span-2 grid grid-cols-2 gap-2">
@@ -642,7 +645,10 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                                 return price.toLocaleString();
                               })()}`}
                               value={yard.priceBought}
-                              onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: e.target.value } : y) } : b))}
+                              onChange={(e) => setBundles(prev => prev.map((b) => ({
+                                ...b,
+                                yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: e.target.value } : y)
+                              })))}
                               className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
                             />
                             <div className="mt-1 text-[10px] font-bold text-gray-500">Auto: ₦{(() => {
@@ -661,7 +667,10 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                                 return price.toLocaleString();
                               })()}`}
                               value={yard.priceSell}
-                              onChange={(e) => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceSell: e.target.value } : y) } : b))}
+                              onChange={(e) => setBundles(prev => prev.map((b) => ({
+                                ...b,
+                                yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceSell: e.target.value } : y)
+                              })))}
                               className="p-2 bg-gray-50 border border-gray-200 rounded-lg"
                             />
                             <div className="mt-1 text-[10px] font-bold text-gray-500">Auto: ₦{(() => {
@@ -673,7 +682,10 @@ export function AddInventoryForm({ onSuccess, onCancel }: AddInventoryFormProps)
                           <div className="col-span-2">
                             <button
                               type="button"
-                              onClick={() => setBundles(prev => prev.map((b, i) => i === bIndex ? { ...b, yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: '', priceSell: '' } : y) } : b))}
+                              onClick={() => setBundles(prev => prev.map((b) => ({
+                                ...b,
+                                yards: b.yards.map((y, j) => j === yIndex ? { ...y, priceBought: '', priceSell: '' } : y)
+                              })))}
                               className="text-[10px] font-bold text-kwari-green"
                             >
                               Reset yard prices to auto

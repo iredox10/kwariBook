@@ -4,9 +4,9 @@ const endpoint = process.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.i
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = process.env.APPWRITE_API_KEY;
 const databaseId = process.env.VITE_APPWRITE_DATABASE_ID;
-const salesCollectionId = process.env.VITE_APPWRITE_SALES_COLLECTION_ID;
-const inventoryCollectionId = process.env.VITE_APPWRITE_INVENTORY_COLLECTION_ID;
-const brokersCollectionId = process.env.VITE_APPWRITE_BROKERS_COLLECTION_ID;
+const salesCollectionId = process.env.VITE_APPWRITE_SALES_COLLECTION_ID || 'sales';
+const inventoryCollectionId = process.env.VITE_APPWRITE_INVENTORY_COLLECTION_ID || 'inventory';
+const brokersCollectionId = process.env.VITE_APPWRITE_BROKERS_COLLECTION_ID || 'brokers';
 const transfersCollectionId = 'transfers';
 const shopsCollectionId = 'shops';
 const customersCollectionId = 'customers';
@@ -16,6 +16,9 @@ const zakatCollectionId = 'zakat';
 const suppliersCollectionId = 'suppliers';
 const supplierTransactionsCollectionId = 'supplier_transactions';
 const usersCollectionId = 'users';
+const dealersCollectionId = 'dealers';
+const bundlesCollectionId = 'bundles';
+const yardsCollectionId = 'yards';
 
 if (!projectId) console.log('Missing VITE_APPWRITE_PROJECT_ID');
 if (!apiKey) console.log('Missing APPWRITE_API_KEY');
@@ -173,6 +176,39 @@ async function setup() {
       { key: 'role', type: 'string', size: 20, required: true, default: 'sales_boy' },
       { key: 'shopIds', type: 'string', size: 1000, required: false },
       { key: 'isActive', type: 'boolean', required: true, default: true },
+    ]);
+
+    // 14. Setup Dealers Collection
+    await setupCollection(dealersCollectionId, 'Dealers', [
+      { key: 'name', type: 'string', size: 255, required: true },
+      { key: 'quantity', type: 'double', required: true },
+      { key: 'priceBought', type: 'double', required: true },
+      { key: 'priceSell', type: 'double', required: true },
+      { key: 'shopId', type: 'integer', required: true },
+      { key: 'createdBy', type: 'string', size: 255, required: true },
+    ]);
+
+    // 15. Setup Bundles Collection
+    await setupCollection(bundlesCollectionId, 'Bundles', [
+      { key: 'dealerId', type: 'integer', required: true },
+      { key: 'quantity', type: 'double', required: true },
+      { key: 'priceBought', type: 'double', required: true },
+      { key: 'priceSell', type: 'double', required: true },
+      { key: 'color', type: 'string', size: 50, required: true },
+      { key: 'image', type: 'string', size: 100000, required: false },
+      { key: 'shopId', type: 'integer', required: true },
+    ]);
+
+    // 16. Setup Yards Collection
+    await setupCollection(yardsCollectionId, 'Yards', [
+      { key: 'bundleId', type: 'integer', required: true },
+      { key: 'name', type: 'string', size: 255, required: true },
+      { key: 'color', type: 'string', size: 50, required: true },
+      { key: 'image', type: 'string', size: 100000, required: false },
+      { key: 'quantity', type: 'double', required: true },
+      { key: 'priceBought', type: 'double', required: true },
+      { key: 'priceSell', type: 'double', required: true },
+      { key: 'shopId', type: 'integer', required: true },
     ]);
 
     console.log('Appwrite setup completed successfully!');
