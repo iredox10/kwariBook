@@ -1,5 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie';
 
+export const SYNC_EVENT = 'kwaribook-sync';
+
+export function triggerSync() {
+  if (navigator.onLine) {
+    window.dispatchEvent(new CustomEvent(SYNC_EVENT));
+  }
+}
+
 interface Sale {
   id?: number;
   customerName: string;
@@ -264,6 +272,7 @@ export async function recordZakat(zakat: Omit<ZakatPayment, 'id' | 'updatedAt'>)
   const data: ZakatPayment = { ...zakat, updatedAt: Date.now() };
   const id = await db.zakat.add(data);
   await db.sync_queue.add({ action: 'CREATE', collection: 'zakat', payload: { ...data, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 
@@ -271,12 +280,14 @@ export async function addCustomer(customer: Omit<Customer, 'id' | 'updatedAt'>) 
   const data: Customer = { ...customer, updatedAt: Date.now() };
   const id = await db.customers.add(data);
   await db.sync_queue.add({ action: 'CREATE', collection: 'customers', payload: { ...data, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 
 export async function flagCustomer(flagData: Omit<FlaggedCustomer, 'id'>) {
   const id = await db.flagged_customers.add(flagData);
   await db.sync_queue.add({ action: 'CREATE', collection: 'flagged_customers', payload: { ...flagData, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 
@@ -284,6 +295,7 @@ export async function addSupplier(supplier: Omit<Supplier, 'id' | 'updatedAt'>) 
   const data: Supplier = { ...supplier, updatedAt: Date.now() };
   const id = await db.suppliers.add(data);
   await db.sync_queue.add({ action: 'CREATE', collection: 'suppliers', payload: { ...data, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 
@@ -298,6 +310,7 @@ export async function addSupplierTransaction(tx: Omit<SupplierTransaction, 'id' 
     await db.suppliers.update(tx.supplierId, { totalDebt: newBalance, updatedAt: Date.now() });
     await db.sync_queue.add({ action: 'CREATE', collection: 'supplier_transactions', payload: { ...data, id }, timestamp: Date.now() });
     await db.sync_queue.add({ action: 'UPDATE', collection: 'suppliers', payload: { id: tx.supplierId, totalDebt: newBalance, updatedAt: Date.now() }, timestamp: Date.now() });
+    triggerSync();
     return id;
   });
 }
@@ -306,6 +319,7 @@ export async function addExpense(expense: Omit<Expense, 'id' | 'updatedAt'>) {
   const data: Expense = { ...expense, updatedAt: Date.now() };
   const id = await db.expenses.add(data);
   await db.sync_queue.add({ action: 'CREATE', collection: 'expenses', payload: { ...data, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 
@@ -321,6 +335,7 @@ export async function addSale(sale: Omit<Sale, 'id' | 'updatedAt' | 'items'>, it
       }
     }
     await db.sync_queue.add({ action: 'CREATE', collection: 'sales', payload: { ...saleData, id }, timestamp: Date.now() });
+    triggerSync();
     return id;
   });
 }
@@ -341,6 +356,7 @@ export async function reverseSale(saleId: number, reversedBy: string, reason: st
       }
     }
     await db.sync_queue.add({ action: 'UPDATE', collection: 'sales', payload: { id: saleId, isReversed: true, reversedBy, reversalReason: reason, updatedAt: Date.now() }, timestamp: Date.now() });
+    triggerSync();
   });
 }
 
@@ -348,6 +364,7 @@ export async function addInventoryItem(item: Omit<InventoryItem, 'id' | 'updated
   const itemData: InventoryItem = { ...item, updatedAt: Date.now() };
   const id = await db.inventory.add(itemData);
   await db.sync_queue.add({ action: 'CREATE', collection: 'inventory', payload: { ...itemData, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 
@@ -395,6 +412,7 @@ export async function addDealerHierarchy(
       }
     }
 
+    triggerSync();
     return dealerId;
   });
 }
@@ -404,12 +422,14 @@ export async function recordPayment(saleId: number) {
   if (!sale) return;
   await db.sales.update(saleId, { status: 'paid', updatedAt: Date.now() });
   await db.sync_queue.add({ action: 'UPDATE', collection: 'sales', payload: { id: saleId, status: 'paid', updatedAt: Date.now() }, timestamp: Date.now() });
+  triggerSync();
 }
 
 export async function addBroker(broker: Omit<Broker, 'id' | 'updatedAt'>) {
   const brokerData: Broker = { ...broker, updatedAt: Date.now() };
   const id = await db.brokers.add(brokerData);
   await db.sync_queue.add({ action: 'CREATE', collection: 'brokers', payload: { ...brokerData, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 
@@ -429,6 +449,7 @@ export async function transferStock(transfer: Omit<StockTransfer, 'id' | 'update
     await db.transfers.add(transferData);
     await db.sync_queue.add({ action: 'UPDATE', collection: 'inventory', payload: { id: transfer.productId, quantity: fromItem.quantity - transfer.quantity, updatedAt: Date.now() }, timestamp: Date.now() });
     await db.sync_queue.add({ action: 'CREATE', collection: 'transfers', payload: transferData, timestamp: Date.now() });
+    triggerSync();
     return true;
   });
 }
@@ -443,6 +464,7 @@ export async function addDebtPayment(saleId: number, amount: number) {
     const totalPaid = allPayments.reduce((sum, p) => sum + p.amount, 0);
     if (totalPaid >= sale.totalAmount) await db.sales.update(saleId, { status: 'paid', updatedAt: Date.now() });
     await db.sync_queue.add({ action: 'CREATE', collection: 'debt_payments', payload: { ...payment, id }, timestamp: Date.now() });
+    triggerSync();
     return id;
   });
 }
@@ -451,6 +473,7 @@ export async function addUser(user: Omit<User, 'id' | 'updatedAt'>) {
   const data: User = { ...user, updatedAt: Date.now() };
   const id = await db.users.add(data);
   await db.sync_queue.add({ action: 'CREATE', collection: 'users', payload: { ...data, id }, timestamp: Date.now() });
+  triggerSync();
   return id;
 }
 

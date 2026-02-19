@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { db } from '../lib/db';
+import { db, SYNC_EVENT } from '../lib/db';
 import { databases } from '../api/appwrite';
 import { ID, Query } from 'appwrite';
 
@@ -25,280 +25,220 @@ export function useSyncManager() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      processQueue();
+    };
     const handleOffline = () => setIsOnline(false);
+    const handleSyncEvent = () => processQueue();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener(SYNC_EVENT, handleSyncEvent);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener(SYNC_EVENT, handleSyncEvent);
     };
   }, []);
 
   const processQueue = useCallback(async () => {
-    if (isSyncing || !DATABASE_ID) return;
+    if (isSyncing || !DATABASE_ID || !navigator.onLine) return;
     
     const queueItems = await db.sync_queue.orderBy('timestamp').toArray();
     if (queueItems.length === 0) return;
 
     setIsSyncing(true);
+    console.log(`Processing ${queueItems.length} sync items...`);
 
     for (const item of queueItems) {
       try {
+        const payload = item.payload as Record<string, unknown>;
+        
         if (item.collection === 'sales' && item.action === 'CREATE') {
           const response = await databases.createDocument(
             DATABASE_ID,
             SALES_COLLECTION_ID,
             ID.unique(),
             {
-              customerName: item.payload.customerName,
-              customerId: item.payload.customerId,
-              totalAmount: item.payload.totalAmount,
-              status: item.payload.status,
-              date: item.payload.date,
-              localId: item.payload.id,
-              shopId: item.payload.shopId,
-              brokerId: item.payload.brokerId,
-              laadaAmount: item.payload.laadaAmount,
-              createdBy: item.payload.createdBy,
-              items: JSON.stringify(item.payload.items) 
+              customerName: payload.customerName,
+              customerId: payload.customerId,
+              totalAmount: payload.totalAmount,
+              status: payload.status,
+              date: payload.date,
+              localId: payload.id,
+              shopId: payload.shopId,
+              brokerId: payload.brokerId,
+              laadaAmount: payload.laadaAmount,
+              createdBy: payload.createdBy,
+              items: payload.items ? JSON.stringify(payload.items) : ''
             }
           );
-          await db.sales.update(item.payload.id, { appwriteId: response.$id });
-        } else if (item.collection === 'inventory' && (item.action === 'CREATE' || item.action === 'UPDATE')) {
-          if (item.action === 'CREATE') {
-            const response = await databases.createDocument(
+          await db.sales.update(payload.id as number, { appwriteId: response.$id });
+        } else if (item.collection === 'inventory' && item.action === 'CREATE') {
+          const response = await databases.createDocument(
+            DATABASE_ID,
+            INVENTORY_COLLECTION_ID,
+            ID.unique(),
+            {
+              name: payload.name,
+              category: payload.category,
+              quantity: payload.quantity,
+              unit: payload.unit,
+              pricePerUnit: payload.pricePerUnit,
+              purchasePrice: payload.purchasePrice,
+              purchaseCurrency: payload.purchaseCurrency,
+              wholesalePrice: payload.wholesalePrice,
+              wholesaleThreshold: payload.wholesaleThreshold,
+              photo: payload.photo,
+              barcode: payload.barcode,
+              shopId: payload.shopId,
+              localId: payload.id,
+              createdBy: payload.createdBy
+            }
+          );
+          await db.inventory.update(payload.id as number, { appwriteId: response.$id });
+        } else if (item.collection === 'inventory' && item.action === 'UPDATE') {
+          const localRecord = await db.inventory.get(payload.id as number);
+          if (localRecord?.appwriteId) {
+            await databases.updateDocument(
               DATABASE_ID,
               INVENTORY_COLLECTION_ID,
-              ID.unique(),
-              {
-                name: item.payload.name,
-                category: item.payload.category,
-                quantity: item.payload.quantity,
-                unit: item.payload.unit,
-                pricePerUnit: item.payload.pricePerUnit,
-                purchasePrice: item.payload.purchasePrice,
-                purchaseCurrency: item.payload.purchaseCurrency,
-                wholesalePrice: item.payload.wholesalePrice,
-                wholesaleThreshold: item.payload.wholesaleThreshold,
-                photo: item.payload.photo,
-                barcode: item.payload.barcode,
-                shopId: item.payload.shopId,
-                localId: item.payload.id,
-                createdBy: item.payload.createdBy
-              }
+              localRecord.appwriteId,
+              { quantity: payload.quantity, updatedAt: payload.updatedAt }
             );
-            await db.inventory.update(item.payload.id, { appwriteId: response.$id });
-          } else {
-            const localRecord = await db.inventory.get(item.payload.id);
-            if (localRecord?.appwriteId) {
-              await databases.updateDocument(
-                DATABASE_ID,
-                INVENTORY_COLLECTION_ID,
-                localRecord.appwriteId,
-                { 
-                  quantity: item.payload.quantity,
-                  updatedAt: item.payload.updatedAt
-                }
-              );
-            }
           }
         } else if (item.collection === 'brokers' && item.action === 'CREATE') {
           const response = await databases.createDocument(
             DATABASE_ID,
             BROKERS_COLLECTION_ID,
             ID.unique(),
-            {
-              name: item.payload.name,
-              phone: item.payload.phone,
-              localId: item.payload.id
-            }
+            { name: payload.name, phone: payload.phone, localId: payload.id }
           );
-          await db.brokers.update(item.payload.id, { appwriteId: response.$id });
+          await db.brokers.update(payload.id as number, { appwriteId: response.$id });
         } else if (item.collection === 'customers' && item.action === 'CREATE') {
           const response = await databases.createDocument(
             DATABASE_ID,
             CUSTOMERS_COLLECTION_ID,
             ID.unique(),
-            {
-              name: item.payload.name,
-              phone: item.payload.phone,
-              localId: item.payload.id
-            }
+            { name: payload.name, phone: payload.phone, localId: payload.id }
           );
-          await db.customers.update(item.payload.id, { appwriteId: response.$id });
+          await db.customers.update(payload.id as number, { appwriteId: response.$id });
         } else if (item.collection === 'expenses' && item.action === 'CREATE') {
           const response = await databases.createDocument(
             DATABASE_ID,
             EXPENSES_COLLECTION_ID,
             ID.unique(),
             {
-              category: item.payload.category,
-              amount: item.payload.amount,
-              description: item.payload.description,
-              date: item.payload.date,
-              shopId: item.payload.shopId,
-              localId: item.payload.id,
-              createdBy: item.payload.createdBy
+              category: payload.category,
+              amount: payload.amount,
+              description: payload.description,
+              date: payload.date,
+              shopId: payload.shopId,
+              localId: payload.id,
+              createdBy: payload.createdBy
             }
           );
-          await db.expenses.update(item.payload.id, { appwriteId: response.$id });
+          await db.expenses.update(payload.id as number, { appwriteId: response.$id });
         } else if (item.collection === 'suppliers' && item.action === 'CREATE') {
           const response = await databases.createDocument(
             DATABASE_ID,
             SUPPLIERS_COLLECTION_ID,
             ID.unique(),
             {
-              name: item.payload.name,
-              currency: item.payload.currency,
-              totalDebt: item.payload.totalDebt,
-              localId: item.payload.id
+              name: payload.name,
+              phone: payload.phone,
+              currency: payload.currency,
+              totalDebt: payload.totalDebt,
+              localId: payload.id
             }
           );
-          await db.suppliers.update(item.payload.id, { appwriteId: response.$id });
+          await db.suppliers.update(payload.id as number, { appwriteId: response.$id });
         } else if (item.collection === 'supplier_transactions' && item.action === 'CREATE') {
           const response = await databases.createDocument(
             DATABASE_ID,
             SUPPLIER_TRANSACTIONS_COLLECTION_ID,
             ID.unique(),
             {
-              supplierId: item.payload.supplierId,
-              amount: item.payload.amount,
-              currency: item.payload.currency,
-              type: item.payload.type,
-              date: item.payload.date,
-              description: item.payload.description,
-              localId: item.payload.id
+              supplierId: payload.supplierId,
+              amount: payload.amount,
+              currency: payload.currency,
+              type: payload.type,
+              date: payload.date,
+              description: payload.description,
+              localId: payload.id
             }
           );
-          await db.supplier_transactions.update(item.payload.id, { appwriteId: response.$id });
+          await db.supplier_transactions.update(payload.id as number, { appwriteId: response.$id });
         } else if (item.collection === 'debt_payments' && item.action === 'CREATE') {
           await databases.createDocument(
             DATABASE_ID,
             DEBT_PAYMENTS_COLLECTION_ID,
             ID.unique(),
-            {
-              saleId: item.payload.saleId,
-              amount: item.payload.amount,
-              date: item.payload.date,
-              localId: item.payload.id
-            }
+            { saleId: payload.saleId, amount: payload.amount, date: payload.date, localId: payload.id }
           );
         } else if (item.collection === 'zakat' && item.action === 'CREATE') {
           await databases.createDocument(
             DATABASE_ID,
             ZAKAT_COLLECTION_ID,
             ID.unique(),
-            {
-              amount: item.payload.amount,
-              totalWealth: item.payload.totalWealth,
-              date: item.payload.date,
-              note: item.payload.note,
-              localId: item.payload.id
-            }
+            { amount: payload.amount, totalWealth: payload.totalWealth, date: payload.date, note: payload.note, localId: payload.id }
           );
         } else if (item.collection === 'transfers' && item.action === 'CREATE') {
           await databases.createDocument(
             DATABASE_ID,
             TRANSFERS_COLLECTION_ID,
             ID.unique(),
-            {
-              fromShopId: item.payload.fromShopId,
-              toShopId: item.payload.toShopId,
-              productId: item.payload.productId,
-              quantity: item.payload.quantity,
-              date: item.payload.date,
-              createdBy: item.payload.createdBy
-            }
+            { fromShopId: payload.fromShopId, toShopId: payload.toShopId, productId: payload.productId, quantity: payload.quantity, date: payload.date, createdBy: payload.createdBy }
           );
         } else if (item.collection === 'sales' && item.action === 'UPDATE') {
-          const localRecord = await db.sales.get(item.payload.id);
+          const localRecord = await db.sales.get(payload.id as number);
           if (localRecord?.appwriteId) {
-             await databases.updateDocument(
-               DATABASE_ID,
-               SALES_COLLECTION_ID,
-               localRecord.appwriteId,
-               { 
-                 status: item.payload.status,
-                 isReversed: item.payload.isReversed,
-                 reversedBy: item.payload.reversedBy,
-                 reversalReason: item.payload.reversalReason,
-                 updatedAt: item.payload.updatedAt
-               }
-             );
+            await databases.updateDocument(DATABASE_ID, SALES_COLLECTION_ID, localRecord.appwriteId, {
+              status: payload.status,
+              isReversed: payload.isReversed,
+              reversedBy: payload.reversedBy,
+              reversalReason: payload.reversalReason,
+              updatedAt: payload.updatedAt
+            });
           }
         } else if (item.collection === 'dealers' && item.action === 'CREATE') {
-          const payload = item.payload as Record<string, unknown>;
           const response = await databases.createDocument(
             DATABASE_ID,
             DEALERS_COLLECTION_ID,
             ID.unique(),
-            {
-              name: payload.name,
-              quantity: payload.quantity,
-              priceBought: payload.priceBought,
-              priceSell: payload.priceSell,
-              shopId: payload.shopId,
-              createdBy: payload.createdBy,
-              localId: payload.id
-            }
+            { name: payload.name, quantity: payload.quantity, priceBought: payload.priceBought, priceSell: payload.priceSell, shopId: payload.shopId, createdBy: payload.createdBy, localId: payload.id }
           );
           await db.dealers.update(payload.id as number, { appwriteId: response.$id });
         } else if (item.collection === 'bundles' && item.action === 'CREATE') {
-          const payload = item.payload as Record<string, unknown>;
           const response = await databases.createDocument(
             DATABASE_ID,
             BUNDLES_COLLECTION_ID,
             ID.unique(),
-            {
-              dealerId: payload.dealerId,
-              quantity: payload.quantity,
-              priceBought: payload.priceBought,
-              priceSell: payload.priceSell,
-              color: payload.color,
-              image: payload.image,
-              shopId: payload.shopId,
-              localId: payload.id
-            }
+            { dealerId: payload.dealerId, quantity: payload.quantity, priceBought: payload.priceBought, priceSell: payload.priceSell, color: payload.color, image: payload.image, shopId: payload.shopId, localId: payload.id }
           );
           await db.bundles.update(payload.id as number, { appwriteId: response.$id });
         } else if (item.collection === 'yards' && item.action === 'CREATE') {
-          const payload = item.payload as Record<string, unknown>;
           const response = await databases.createDocument(
             DATABASE_ID,
             YARDS_COLLECTION_ID,
             ID.unique(),
-            {
-              bundleId: payload.bundleId,
-              name: payload.name,
-              color: payload.color,
-              image: payload.image,
-              quantity: payload.quantity,
-              priceBought: payload.priceBought,
-              priceSell: payload.priceSell,
-              shopId: payload.shopId,
-              localId: payload.id
-            }
+            { bundleId: payload.bundleId, name: payload.name, color: payload.color, image: payload.image, quantity: payload.quantity, priceBought: payload.priceBought, priceSell: payload.priceSell, shopId: payload.shopId, localId: payload.id }
           );
           await db.yards.update(payload.id as number, { appwriteId: response.$id });
         }
+        
         await db.sync_queue.delete(item.id!);
+        console.log(`Synced ${item.collection} item`);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('Sync error:', message);
-        break;
+        console.error('Sync error:', message, 'for item:', item.collection);
       }
     }
     setIsSyncing(false);
+    console.log('Sync queue processed');
   }, [isSyncing]);
-
-  useEffect(() => {
-    if (isOnline) {
-      processQueue();
-    }
-  }, [isOnline, processQueue]);
 
   const pullFromCloud = useCallback(async () => {
     if (!DATABASE_ID) {
@@ -375,12 +315,7 @@ export function useSyncManager() {
         const brokersRes = await databases.listDocuments(DATABASE_ID, BROKERS_COLLECTION_ID, [Query.limit(5000)]);
         for (const doc of brokersRes.documents) {
           const existing = await db.brokers.where('appwriteId').equals(doc.$id).first();
-          const brokerData = {
-            name: doc.name,
-            phone: doc.phone,
-            appwriteId: doc.$id,
-            updatedAt: new Date(doc.$updatedAt).getTime()
-          };
+          const brokerData = { name: doc.name, phone: doc.phone, appwriteId: doc.$id, updatedAt: new Date(doc.$updatedAt).getTime() };
           if (existing) {
             await db.brokers.update(existing.id!, brokerData);
           } else {
@@ -393,13 +328,7 @@ export function useSyncManager() {
         const customersRes = await databases.listDocuments(DATABASE_ID, CUSTOMERS_COLLECTION_ID, [Query.limit(5000)]);
         for (const doc of customersRes.documents) {
           const existing = await db.customers.where('appwriteId').equals(doc.$id).first();
-          const customerData = {
-            name: doc.name,
-            phone: doc.phone,
-            isFlagged: doc.isFlagged || false,
-            appwriteId: doc.$id,
-            updatedAt: new Date(doc.$updatedAt).getTime()
-          };
+          const customerData = { name: doc.name, phone: doc.phone, appwriteId: doc.$id, updatedAt: new Date(doc.$updatedAt).getTime() };
           if (existing) {
             await db.customers.update(existing.id!, customerData);
           } else {
