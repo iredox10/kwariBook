@@ -497,49 +497,154 @@ function App() {
               {activeTab === 'sales' && (
                 <div className="space-y-6">
                   {showAddSale ? <AddSaleForm onSuccess={() => setShowAddSale(false)} onCancel={() => setShowAddSale(false)} /> : (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
+                    <div className="space-y-4">
                       {sales?.map((sale) => {
                         const customer = customers?.find(c => c.id === sale.customerId);
+                        const shop = shops?.find(s => s.id === sale.shopId);
+                        const broker = brokers?.find(b => b.id === sale.brokerId);
+                        const salePayments = debtPayments?.filter(dp => dp.saleId === sale.id) || [];
+                        const totalPaidOnDebt = salePayments.reduce((sum, p) => sum + p.amount, 0);
+                        const remainingDebt = sale.status !== 'paid' ? sale.totalAmount - totalPaidOnDebt : 0;
                         return (
-                          <div key={sale.id} className={cn("p-4 flex items-center justify-between hover:bg-gray-50 transition-colors", sale.isReversed && "opacity-50 grayscale bg-gray-50")}>
-                            <div className="flex items-center space-x-4">
-                              <div className={cn("p-2 rounded-full", sale.isReversed ? "bg-gray-200 text-gray-400" : sale.status === 'paid' ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600")}>
-                                {sale.isReversed ? <RotateCcw size={20} /> : <ShoppingBag size={20} />}
-                              </div>
-                              <div>
-                                <div className="flex items-center space-x-2">
-                                  <p className="font-bold text-gray-800">{sale.customerName}</p>
-                                  {sale.isReversed && <span className="text-[8px] font-black uppercase bg-gray-200 text-gray-600 px-1 rounded">{t('reversed')}</span>}
+                          <div key={sale.id} className={cn("bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden", sale.isReversed && "opacity-60")}>
+                            <div className={cn("p-4 border-b border-gray-100", sale.isReversed && "bg-gray-50")}>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className={cn("p-2 rounded-full", sale.isReversed ? "bg-gray-200 text-gray-400" : sale.status === 'paid' ? "bg-green-100 text-green-600" : sale.status === 'credit' ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600")}>
+                                    {sale.isReversed ? <RotateCcw size={20} /> : <ShoppingBag size={20} />}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="font-bold text-gray-800">{sale.customerName}</p>
+                                      <span className={cn("text-[10px] font-black uppercase px-2 py-0.5 rounded", sale.isReversed ? "bg-gray-200 text-gray-600" : sale.status === 'paid' ? "bg-green-100 text-green-700" : sale.status === 'credit' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700")}>
+                                        {sale.isReversed ? t('reversed') : t(sale.status)}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                      {new Date(sale.date).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
                                 </div>
-                                <p className="text-[10px] text-gray-500">
-                                  {new Date(sale.date).toLocaleDateString()} • {t('recordedBy')}: {sale.createdBy}
-                                </p>
-                                {sale.isReversed && (
-                                  <p className="text-[10px] text-red-500 italic mt-1">
-                                    {t('reversedBy')}: {sale.reversedBy} ({sale.reversalReason})
+                                <div className="text-right">
+                                  <p className={cn("text-lg font-black", sale.isReversed ? "line-through text-gray-400" : "text-gray-900")}>{formatCurrency(sale.totalAmount)}</p>
+                                  {shop && <p className="text-[10px] text-gray-500">{shop.name}</p>}
+                                </div>
+                              </div>
+                              {sale.isReversed && (
+                                <div className="mt-3 p-2 bg-red-50 rounded-lg border border-red-100">
+                                  <p className="text-xs text-red-600 font-bold">
+                                    Reversed by {sale.reversedBy} • {sale.reversalReason}
                                   </p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                              <div className="text-right">
-                                <p className={cn("font-bold text-gray-900", sale.isReversed && "line-through")}>{formatCurrency(sale.totalAmount)}</p>
-                              </div>
-                              {!sale.isReversed && (
-                                <>
-                                  <button onClick={() => shareProfessionalReceipt(sale, shops?.find(s => s.id === sale.shopId))} className="p-2 text-gray-400 hover:text-kwari-green" title={t('shareReceipt')}><Share2 size={20} /></button>
-                                  {customer?.phone && (
-                                    <button onClick={() => handleReportScam(customer.phone)} className="p-2 text-gray-400 hover:text-red-600" title="Report Fake Alert"><ShieldAlert size={20} /></button>
-                                  )}
-                                  {FEATURES.canReverseSale(user?.role) && (
-                                    <button onClick={() => sale.id && handleReverse(sale.id)} className="p-2 text-gray-400 hover:text-red-500" title={t('reverse')}><RotateCcw size={20} /></button>
-                                  )}
-                                </>
+                                </div>
                               )}
                             </div>
+
+                            {sale.items && sale.items.length > 0 && (
+                              <div className="p-4 bg-gray-50 border-b border-gray-100">
+                                <h4 className="text-[10px] font-black text-gray-500 uppercase mb-3">Items Sold</h4>
+                                <div className="space-y-2">
+                                  {sale.items.map((item, idx) => {
+                                    const invItem = inventory?.find(i => i.id === item.productId);
+                                    const yard = yards?.find(y => y.id === invItem?.parentId);
+                                    const bundle = yard ? bundles?.find(b => b.id === yard.bundleId) : bundles?.find(b => b.id === invItem?.parentId);
+                                    const itemColor = yard?.color || bundle?.color;
+                                    const itemImage = yard?.image || bundle?.image || invItem?.photo;
+                                    return (
+                                      <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100">
+                                        <div className="flex items-center gap-2">
+                                          {itemImage ? (
+                                            <img src={itemImage} alt={item.name} className="w-10 h-10 rounded-lg object-cover border" />
+                                          ) : itemColor ? (
+                                            <span className="w-10 h-10 rounded-lg border" style={{ backgroundColor: itemColor }} />
+                                          ) : null}
+                                          <div>
+                                            <p className="text-sm font-bold text-gray-800">{item.name}</p>
+                                            <p className="text-[10px] text-gray-500">
+                                              {formatCurrency(item.price)}/unit × {item.quantity}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <p className="font-bold text-gray-800">{formatCurrency(item.price * item.quantity)}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                              <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase">Recorded By</p>
+                                <p className="font-bold text-gray-700">{sale.createdBy}</p>
+                              </div>
+                              {broker && (
+                                <div>
+                                  <p className="text-[10px] font-black text-gray-400 uppercase">Broker</p>
+                                  <p className="font-bold text-gray-700">{broker.name}</p>
+                                </div>
+                              )}
+                              {sale.laadaAmount && sale.laadaAmount > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-black text-gray-400 uppercase">Commission</p>
+                                  <p className="font-bold text-kwari-green">{formatCurrency(sale.laadaAmount)}</p>
+                                </div>
+                              )}
+                              {sale.status !== 'paid' && !sale.isReversed && (
+                                <div>
+                                  <p className="text-[10px] font-black text-gray-400 uppercase">Remaining Debt</p>
+                                  <p className={cn("font-bold", remainingDebt > 0 ? "text-amber-600" : "text-green-600")}>
+                                    {remainingDebt > 0 ? formatCurrency(remainingDebt) : 'Cleared'}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            {sale.status !== 'paid' && !sale.isReversed && salePayments.length > 0 && (
+                              <div className="px-4 pb-4">
+                                <h4 className="text-[10px] font-black text-gray-500 uppercase mb-2">Debt Payments</h4>
+                                <div className="space-y-1">
+                                  {salePayments.map((payment, idx) => (
+                                    <div key={idx} className="flex items-center justify-between text-xs p-2 bg-green-50 rounded-lg border border-green-100">
+                                      <span className="text-gray-600">{new Date(payment.date).toLocaleDateString()}</span>
+                                      <span className="font-bold text-green-700">+{formatCurrency(payment.amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {!sale.isReversed && (
+                              <div className="p-4 border-t border-gray-100 flex items-center justify-end gap-2">
+                                <button onClick={() => shareProfessionalReceipt(sale, shop)} className="px-3 py-2 text-xs font-bold text-gray-600 hover:text-kwari-green hover:bg-gray-100 rounded-lg transition-all flex items-center gap-1">
+                                  <Share2 size={14} /> Share Receipt
+                                </button>
+                                {sale.status !== 'paid' && sale.id && (
+                                  <button onClick={() => handleDebtPayment(sale.id!, sale.totalAmount - totalPaidOnDebt)} className="px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-50 rounded-lg transition-all">
+                                    Record Payment
+                                  </button>
+                                )}
+                                {customer?.phone && (
+                                  <button onClick={() => handleReportScam(customer.phone)} className="px-3 py-2 text-xs font-bold text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all flex items-center gap-1">
+                                    <ShieldAlert size={14} /> Flag
+                                  </button>
+                                )}
+                                {FEATURES.canReverseSale(user?.role) && (
+                                  <button onClick={() => sale.id && handleReverse(sale.id)} className="px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition-all flex items-center gap-1">
+                                    <RotateCcw size={14} /> Reverse
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )
                       })}
+                      {sales?.length === 0 && (
+                        <div className="text-center py-12 text-gray-400">
+                          <ShoppingBag size={48} className="mx-auto mb-4 opacity-20" />
+                          <p className="font-bold">No sales recorded yet</p>
+                          <p className="text-sm">Tap "Add Sale" to record your first transaction</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

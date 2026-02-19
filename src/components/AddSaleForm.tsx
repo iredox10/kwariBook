@@ -26,6 +26,7 @@ interface SelectedItem {
   sourceType: 'yard' | 'bundle' | 'dealer';
   sourceId: number;
   color?: string;
+  image?: string;
 }
 
 export function AddSaleForm({ onSuccess, onCancel }: AddSaleFormProps) {
@@ -156,7 +157,8 @@ export function AddSaleForm({ onSuccess, onCancel }: AddSaleFormProps) {
       name: yard.name,
       sourceType: 'yard',
       sourceId: yard.id!,
-      color: yard.color
+      color: yard.color,
+      image: yard.image
     }]);
   };
 
@@ -661,12 +663,11 @@ export function AddSaleForm({ onSuccess, onCancel }: AddSaleFormProps) {
               {selectedItems.map((item, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex items-center gap-2 flex-1">
-                    {item.color && (
-                      <span
-                        className="inline-block w-4 h-4 rounded-full border"
-                        style={{ backgroundColor: item.color }}
-                      />
-                    )}
+                    {item.image ? (
+                      <img src={item.image} alt={item.name} className="w-8 h-8 rounded-lg object-cover border" />
+                    ) : item.color ? (
+                      <span className="w-8 h-8 rounded-lg border" style={{ backgroundColor: item.color }} />
+                    ) : null}
                     <div className="flex-1">
                       <p className="text-sm font-bold text-gray-800">{item.name}</p>
                       <p className="text-xs text-gray-500">{formatCurrency(item.price)}/unit × {item.quantity} = {formatCurrency(item.price * item.quantity)}</p>
